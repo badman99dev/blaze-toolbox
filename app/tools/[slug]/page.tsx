@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Shell } from "@/components/Shell";
 import { Icon } from "@/components/Icon";
 import { Workbench } from "@/components/tools/Workbench";
+import { PassportSheet } from "@/components/tools/PassportSheet";
 import { TOOLS } from "@/lib/tools";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -28,10 +29,7 @@ export default async function ToolPage({ params }: Props) {
         <p className="lede">{t.blurb}</p>
       </section>
       {t.slug === "passport-photo" ? (
-        <>
-          <iframe className="embed" src="/passport-sheet.html" title="Passport photo sheet" />
-          <p className="hint"><a href="/passport-sheet.html">Open full screen</a> for a larger preview.</p>
-        </>
+        <PassportSheet />
       ) : (
         <Workbench slug={t.slug} />
       )}

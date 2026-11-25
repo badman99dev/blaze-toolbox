@@ -117,3 +117,15 @@ a.cell:hover::before{--c:var(--ink)}
 .res b{display:block;overflow-wrap:anywhere}
 .res span{font-size:var(--fs-small);color:var(--muted)}
 .cta{margin-top:36px}
+
+/* passport tool: print only the sheet itself, full bleed */
+@media print{
+  @page{size:A4;margin:0}
+  body.ps-printing .top,
+  body.ps-printing .foot,
+  body.ps-printing .toolhero,
+  body.ps-printing .cta{display:none!important}
+  body.ps-printing .mat{padding:0!important;background:#fff!important;background-image:none!important;min-height:0!important}
+  body.ps-printing .sheet{box-shadow:none!important;padding:0!important;background:#fff!important}
+  body.ps-printing .sheetwrap{max-width:none!important;margin:0!important}
+}
