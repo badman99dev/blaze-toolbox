@@ -38,6 +38,7 @@ export const TOOLS: Tool[] = [
   { slug: "pdf-rotate", cat: "everyday", mode: "local", name: "Rotate PDF", blurb: "Turn pages 90, 180 or 270 degrees and save a fixed copy.", meta: "90 / 180 / 270" },
   { slug: "pdf-unlock", cat: "everyday", mode: "local", name: "Unlock PDF", blurb: "Remove a password or the printing and copying restrictions from a PDF you own.", meta: "Password or restrictions" },
   { slug: "pdf-lock", cat: "everyday", mode: "local", name: "Lock PDF", blurb: "Add a password so a PDF can only be opened by the people you share it with.", meta: "Password + permissions" },
+  { slug: "pdf-page-numbers", cat: "everyday", mode: "local", name: "Add page numbers", blurb: "Stamp numbers like Page 1 of 10 on any PDF — pick position, style and where counting starts.", meta: "Pattern + position" },
 
   { slug: "image-convert", cat: "edit", mode: "local", name: "Image converter", blurb: "Convert between PNG, JPG, WebP and AVIF while keeping the quality you want.", meta: "PNG, JPG, WebP, AVIF" },
   { slug: "circle-crop", cat: "edit", mode: "local", name: "Circle crop", blurb: "Crop a photo into a round avatar with a transparent background.", meta: "Transparent PNG" },

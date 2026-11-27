@@ -57,6 +57,37 @@ function parsePages(input: string, total: number) {
   });
   return [...set].sort((a, b) => a - b);
 }
+const MM = 72 / 25.4;
+function romanNum(n: number) {
+  if (n <= 0) return String(n);
+  const map: [number, string][] = [[1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"], [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]];
+  let s = "";
+  for (const [v, sym] of map) { while (n >= v) { s += sym; n -= v; } }
+  return s;
+}
+function alphaNum(n: number) {
+  if (n <= 0) return String(n);
+  let s = "";
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+function fmtPageNumber(n: number, format: string, digits: number) {
+  if (format === "romanLower") return romanNum(n).toLowerCase();
+  if (format === "romanUpper") return romanNum(n);
+  if (format === "alphaLower") return alphaNum(n).toLowerCase();
+  if (format === "alphaUpper") return alphaNum(n);
+  const s = String(n);
+  return digits > 1 ? s.padStart(digits, "0") : s;
+}
+function fillPattern(pattern: string, num: string, cnt: string) {
+  return pattern.replace(/\{NUM\}/gi, num).replace(/\{CNT\}/gi, cnt).replace(/\{N\}/gi, num).replace(/\{TOTAL\}/gi, cnt);
+}
+function hexRgb(hex: string) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return { r: 0, g: 0, b: 0 };
+  const v = parseInt(m[1], 16);
+  return { r: ((v >> 16) & 255) / 255, g: ((v >> 8) & 255) / 255, b: (v & 255) / 255 };
+}
 // qpdf compiled to WebAssembly handles real-world protected PDFs (xref streams,
 // AES-256, owner-only restrictions) and writes a genuinely unencrypted copy.
 // The 1.3 MB wasm is served from /qpdf/qpdf.wasm and only fetched on first use.
@@ -165,6 +196,7 @@ const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: s
   "pdf-rotate": { accept: "application/pdf", multi: false, hint: "One PDF.", cta: "Rotate" },
   "pdf-unlock": { accept: "application/pdf", multi: false, hint: "One PDF. Enter its password if it asks for one.", cta: "Unlock" },
   "pdf-lock": { accept: "application/pdf", multi: false, hint: "One PDF. Choose a password to open it.", cta: "Lock" },
+  "pdf-page-numbers": { accept: "application/pdf", multi: true, hint: "One or more PDFs. Pick them in the order you want the numbers to continue.", cta: "Add page numbers" },
 };
 
 export function Workbench({ slug }: { slug: string }) {
@@ -193,6 +225,23 @@ export function Workbench({ slug }: { slug: string }) {
   const [pdfPw, setPdfPw] = useState("");
   const [allowPrint, setAllowPrint] = useState(true);
   const [allowCopy, setAllowCopy] = useState(true);
+  const [pnPattern, setPnPattern] = useState("{NUM} / {CNT}");
+  const [pnPos, setPnPos] = useState("bottom-center");
+  const [pnSize, setPnSize] = useState("10");
+  const [pnFont, setPnFont] = useState("sans");
+  const [pnBold, setPnBold] = useState(false);
+  const [pnItalic, setPnItalic] = useState(false);
+  const [pnColor, setPnColor] = useState("#000000");
+  const [pnOpacity, setPnOpacity] = useState(100);
+  const [pnAngle, setPnAngle] = useState("0");
+  const [pnSpaceX, setPnSpaceX] = useState("5");
+  const [pnSpaceY, setPnSpaceY] = useState("5");
+  const [pnFirstPage, setPnFirstPage] = useState("1");
+  const [pnFirstNumber, setPnFirstNumber] = useState("1");
+  const [pnLastPage, setPnLastPage] = useState("");
+  const [pnFormat, setPnFormat] = useState("arabic");
+  const [pnDigits, setPnDigits] = useState("1");
+  const [pnContinuous, setPnContinuous] = useState(false);
   const urls = useRef<string[]>([]);
 
   const keep = (blob: Blob) => { const u = URL.createObjectURL(blob); urls.current.push(u); return u; };
@@ -418,6 +467,54 @@ export function Workbench({ slug }: { slug: string }) {
         const out = await lockPdf(bytes, pdfPw, allowPrint, allowCopy);
         const blob = new Blob([out as unknown as BlobPart], { type: "application/pdf" });
         res.push({ name: `${base(files[0].name)}-locked.pdf`, url: keep(blob), note: `Password-protected, ${kb(blob.size)}` });
+      } else if (slug === "pdf-page-numbers") {
+        const { PDFDocument, StandardFonts, rgb, degrees } = await import("pdf-lib");
+        const F = StandardFonts;
+        const fontName = pnFont === "serif"
+          ? (pnBold && pnItalic ? F.TimesRomanBoldItalic : pnBold ? F.TimesRomanBold : pnItalic ? F.TimesRomanItalic : F.TimesRoman)
+          : pnFont === "mono"
+          ? (pnBold && pnItalic ? F.CourierBoldOblique : pnBold ? F.CourierBold : pnItalic ? F.CourierOblique : F.Courier)
+          : (pnBold && pnItalic ? F.HelveticaBoldOblique : pnBold ? F.HelveticaBold : pnItalic ? F.HelveticaOblique : F.Helvetica);
+        const docs: { f: File; d: Awaited<ReturnType<typeof PDFDocument.load>> }[] = [];
+        let allPages = 0;
+        for (const f of files) {
+          setStatus(`Reading ${f.name}`);
+          const d = await PDFDocument.load(await f.arrayBuffer());
+          docs.push({ f, d });
+          allPages += d.getPageCount();
+        }
+        const fsize = Math.max(4, Number(pnSize) || 10);
+        const sx = Math.max(0, Number(pnSpaceX) || 0) * MM;
+        const sy = Math.max(0, Number(pnSpaceY) || 0) * MM;
+        const firstPage = Math.max(1, Number(pnFirstPage) || 1);
+        const lastPage = pnLastPage.trim() ? Math.max(1, Number(pnLastPage) || 0) : Infinity;
+        const digits = Math.max(1, Number(pnDigits) || 1);
+        const col = hexRgb(pnColor);
+        let counter = Number(pnFirstNumber) || 1;
+        for (const { f, d } of docs) {
+          const total = d.getPageCount();
+          const font = await d.embedFont(fontName);
+          const cnt = pnContinuous ? allPages : total;
+          let num = pnContinuous ? counter : (Number(pnFirstNumber) || 1);
+          let numbered = 0;
+          for (let i = 1; i <= total; i++) {
+            if (i < firstPage || i > lastPage) continue;
+            const page = d.getPage(i - 1);
+            const { width: W, height: H } = page.getSize();
+            const text = fillPattern(pnPattern.trim() || "{NUM} / {CNT}", fmtPageNumber(num, pnFormat, digits), fmtPageNumber(cnt, pnFormat, digits));
+            const tw = font.widthOfTextAtSize(text, fsize);
+            const [, horiz] = pnPos.split("-");
+            const outsideRight = i % 2 === 1;
+            const x = horiz === "left" ? sx : horiz === "center" ? (W - tw) / 2 : horiz === "right" ? W - sx - tw : outsideRight ? W - sx - tw : sx;
+            const vert = pnPos.split("-")[0];
+            const y = vert === "top" ? H - sy - fsize : vert === "middle" ? H / 2 - fsize / 2 : sy;
+            page.drawText(text, { x, y, size: fsize, font, color: rgb(col.r, col.g, col.b), opacity: pnOpacity / 100, rotate: degrees(Number(pnAngle) || 0) });
+            num++; numbered++;
+          }
+          if (pnContinuous) counter = num;
+          const blob = new Blob([(await d.save()) as unknown as BlobPart], { type: "application/pdf" });
+          res.push({ name: `${base(f.name)}-numbered.pdf`, url: keep(blob), note: `${numbered} of ${total} pages numbered, ${kb(blob.size)}` });
+        }
       }
       setOut(res);
     } catch (e) {
@@ -537,6 +634,60 @@ export function Workbench({ slug }: { slug: string }) {
           <label className="check"><input type="checkbox" checked={allowPrint} onChange={(e) => setAllowPrint(e.target.checked)} />Allow printing<small>Turn off to block printing on most viewers.</small></label>
           <label className="check"><input type="checkbox" checked={allowCopy} onChange={(e) => setAllowCopy(e.target.checked)} />Allow copying text<small>Turn off to block selecting and copying text.</small></label>
           <p className="hint">AES-256 encryption. The file and password never leave your device. Keep the password safe — there is no recovery if you lose it.</p>
+        </>}
+        {slug === "pdf-page-numbers" && <>
+          <label className="full">Pattern<input type="text" value={pnPattern} onChange={(e) => setPnPattern(e.target.value)} placeholder="{NUM} / {CNT}" /></label>
+          <label>Position
+            <select value={pnPos} onChange={(e) => setPnPos(e.target.value)}>
+              <optgroup label="Top">
+                <option value="top-left">Top, left</option>
+                <option value="top-center">Top, center</option>
+                <option value="top-right">Top, right</option>
+                <option value="top-outside">Top, outside</option>
+              </optgroup>
+              <optgroup label="Middle">
+                <option value="middle-left">Middle, left</option>
+                <option value="middle-center">Middle, center</option>
+                <option value="middle-right">Middle, right</option>
+              </optgroup>
+              <optgroup label="Bottom">
+                <option value="bottom-left">Bottom, left</option>
+                <option value="bottom-center">Bottom, center</option>
+                <option value="bottom-right">Bottom, right</option>
+                <option value="bottom-outside">Bottom, outside</option>
+              </optgroup>
+            </select>
+          </label>
+          <label>Font size<input type="number" min="4" max="72" value={pnSize} onChange={(e) => setPnSize(e.target.value)} /></label>
+          <label>Font
+            <select value={pnFont} onChange={(e) => setPnFont(e.target.value)}>
+              <option value="sans">Sans</option>
+              <option value="serif">Serif</option>
+              <option value="mono">Mono</option>
+            </select>
+          </label>
+          <label className="check"><input type="checkbox" checked={pnBold} onChange={(e) => setPnBold(e.target.checked)} />Bold</label>
+          <label className="check"><input type="checkbox" checked={pnItalic} onChange={(e) => setPnItalic(e.target.checked)} />Italic</label>
+          <label>Colour<input type="color" value={pnColor} onChange={(e) => setPnColor(e.target.value)} /></label>
+          <label>Opacity: {pnOpacity}%<input type="range" min="10" max="100" step="5" value={pnOpacity} onChange={(e) => setPnOpacity(+e.target.value)} /></label>
+          <label>Angle (°)<input type="number" value={pnAngle} onChange={(e) => setPnAngle(e.target.value)} /></label>
+          <label>Side space (mm)<input type="number" min="0" value={pnSpaceX} onChange={(e) => setPnSpaceX(e.target.value)} /></label>
+          <label>Edge space (mm)<input type="number" min="0" value={pnSpaceY} onChange={(e) => setPnSpaceY(e.target.value)} /></label>
+          <label>First page<input type="number" min="1" value={pnFirstPage} onChange={(e) => setPnFirstPage(e.target.value)} /></label>
+          <label>First number<input type="number" value={pnFirstNumber} onChange={(e) => setPnFirstNumber(e.target.value)} /></label>
+          <label>Last page (optional)<input type="number" min="1" value={pnLastPage} onChange={(e) => setPnLastPage(e.target.value)} placeholder="end" /></label>
+          <label>Number style
+            <select value={pnFormat} onChange={(e) => setPnFormat(e.target.value)}>
+              <option value="arabic">1, 2, 3</option>
+              <option value="romanLower">i, ii, iii</option>
+              <option value="romanUpper">I, II, III</option>
+              <option value="alphaLower">a, b, c</option>
+              <option value="alphaUpper">A, B, C</option>
+            </select>
+          </label>
+          <label>Digits<input type="number" min="1" max="10" value={pnDigits} onChange={(e) => setPnDigits(e.target.value)} /></label>
+          <label className="check"><input type="checkbox" checked={pnContinuous} onChange={(e) => setPnContinuous(e.target.checked)} />Continue across files<small>Carries the count from one PDF to the next, in the order you picked them.</small></label>
+          <p className="hint">Use <b>{"{NUM}"}</b> for the page number and <b>{"{CNT}"}</b> for the total, e.g. <b>{"Page {NUM} of {CNT}"}</b>. Inserted text is real text the viewer can search and copy.</p>
         </>}
       </div>
 

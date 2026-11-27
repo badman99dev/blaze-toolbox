@@ -17,6 +17,7 @@ const P: Record<string, React.ReactNode> = {
   "pdf-rotate": <><path d="M25 12a9 9 0 1 0-1.2 9" /><path d="M25 7v5h-5" /><rect x="11" y="11" width="10" height="12" rx="1.5" /></>,
   "pdf-unlock": <><rect x="9" y="14" width="14" height="12" rx="2" /><path d="M12 14v-3a4 4 0 0 1 7.5-2" /><circle cx="16" cy="20" r="1.6" /></>,
   "pdf-lock": <><rect x="9" y="14" width="14" height="12" rx="2" /><path d="M12 14v-3a4 4 0 0 1 8 0v3" /><circle cx="16" cy="20" r="1.6" /></>,
+  "pdf-page-numbers": <><rect x="7" y="4" width="18" height="24" rx="2" /><path d="M11 11h10M11 16h10" /><path d="M11 24h4" /><circle cx="21.5" cy="23.5" r="3.5" /><path d="M21.5 22v3" /></>,
 };
 export function Icon({ slug }: { slug: string }) {
   return (

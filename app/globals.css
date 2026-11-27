@@ -125,6 +125,7 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .opts>*{min-width:0}
 .opts label{display:grid;gap:.375rem;font-size:var(--fs-small);font-weight:600;min-width:0}
 .opts .hint,.opts .check{grid-column:1/-1;margin:0}
+.opts .full{grid-column:1/-1}
 .opts input[type=number],.opts input[type=text],.opts input[type=password],.opts select{font:inherit;width:100%;min-width:0;min-height:2.75rem;padding:.5rem .625rem;border:1px solid var(--edge);border-radius:var(--r);background:#fff;color:inherit}
 .opts input[type=text]:disabled,.opts input[type=password]:disabled{opacity:.5}
 .opts input[type=color]{width:100%;min-width:0;min-height:2.75rem;padding:.25rem;border:1px solid var(--edge);border-radius:var(--r);background:#fff;cursor:pointer}
