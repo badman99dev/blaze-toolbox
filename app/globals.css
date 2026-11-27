@@ -79,7 +79,13 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .toolhero.compact h1{margin:0;font-size:clamp(1.25rem,1rem + 1.2vw,1.75rem)}
 .toolhero.compact .lede{display:none}
 .hint{margin-top:.625rem;font-size:var(--fs-small);color:var(--muted)}
-.wb{display:grid;gap:1.125rem;max-width:40rem;min-width:0}
+.wb{display:grid;gap:clamp(1rem,3vw,2rem);grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));align-items:start;min-width:0}
+.wb>*{min-width:0}
+.wb-in{display:grid;gap:1.125rem}
+.wb-out{min-height:12rem;padding:clamp(1rem,2.5vw,1.5rem);background:var(--soft);border:1px solid var(--line);border-radius:.75rem}
+.wb-out .empty{color:var(--muted);font-size:var(--fs-small)}
+.wb-out .res{border-top:0}
+.wb-out .res li:last-child{border-bottom:0}
 .drop{position:relative;display:flex;flex-direction:column;gap:.125rem;padding:1.5rem;border:1.5px dashed #92a299;border-radius:.75rem;background:var(--soft);cursor:pointer;overflow-wrap:anywhere}
 .drop:focus-within,.drop:hover{border-color:var(--accent);background:#eef0fd}
 .drop span{font-size:var(--fs-small);color:var(--muted)}
@@ -93,7 +99,7 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .check{display:flex!important;gap:.625rem;align-items:flex-start}
 .check input{width:1.125rem;height:1.125rem;margin-top:.125rem;accent-color:var(--ink)}
 .check small{display:block;font-weight:400;color:var(--muted)}
-.wb>.btn{justify-self:start}
+.wb-in>.btn{justify-self:stretch}
 .err{color:var(--bad);font-weight:600}
 .res{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
 .res li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.5rem 1rem;padding:.75rem 0;border-bottom:1px solid var(--line)}

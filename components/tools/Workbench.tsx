@@ -143,6 +143,7 @@ export function Workbench({ slug }: { slug: string }) {
 
   return (
     <div className="wb">
+      <div className="wb-in">
       <label className="drop">
         <strong>{files.length ? files.map((f) => f.name).join(", ") : "Choose a file"}</strong>
         <span>{files.length ? "Choose again to replace." : `${cfg.hint} Or drop it here.`}</span>
@@ -177,13 +178,19 @@ export function Workbench({ slug }: { slug: string }) {
 
       <button className="btn primary" disabled={!files.length || busy} onClick={run}>{busy ? status || "Working" : cfg.cta}</button>
       {err && <p className="err" role="alert">{err}</p>}
-      {out.length > 0 && (
-        <ul className="res" aria-live="polite">
-          {out.map((o) => (
-            <li key={o.url}><div><b>{o.name}</b><span>{o.note}</span></div><a className="btn" href={o.url} download={o.name}>Download</a></li>
-          ))}
-        </ul>
-      )}
+      </div>
+
+      <section className="wb-out" aria-label="Result" aria-live="polite">
+        {out.length > 0 ? (
+          <ul className="res">
+            {out.map((o) => (
+              <li key={o.url}><div><b>{o.name}</b><span>{o.note}</span></div><a className="btn" href={o.url} download={o.name}>Download</a></li>
+            ))}
+          </ul>
+        ) : (
+          <p className="empty">{busy ? status || "Working" : files.length ? "Ready. Your result will appear here." : "Your result will appear here."}</p>
+        )}
+      </section>
     </div>
   );
 }
