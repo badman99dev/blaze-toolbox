@@ -37,41 +37,95 @@ const cl = (v: string) => Math.max(0, parseFloat(v) || 0);
 const HELP = {
   margin: {
     title: "Page margin",
-    img: "/help/page-margin.svg",
     alt: "A4 sheet with passport photos. The blank border around all photos is highlighted as the page margin.",
     text: "The blank border between the paper edge and your photos, on all four sides. Raise it if your printer cuts off the edges. A margin of 0 fits the most photos on a sheet.",
   },
   sides: {
     title: "Set each side separately",
-    img: "/help/separate-sides.svg",
     alt: "A4 sheet with passport photos. The top, bottom, left and right margins are highlighted with different widths.",
     text: "Give the top, bottom, left and right margins different values. Useful when your printer needs more room on one side, or when you want the photos moved away from one edge.",
   },
   gap: {
     title: "Gap between photos",
-    img: "/help/photo-gap.svg",
     alt: "A4 sheet with passport photos. The spaces between neighbouring photos are highlighted as the gap.",
     text: "The space between neighbouring photos. A small gap leaves a white border around each photo, so it is easier to cut cleanly. A gap of 0 fits the most photos, but you must cut exactly on the line.",
   },
 } as const;
 type HelpKey = keyof typeof HELP;
 
-function HelpImage({ src, alt }: { src: string; alt: string }) {
-  const [state, setState] = useState<"loading" | "ok" | "err">("loading");
+/* Help illustration drawn in code (no image file, so nothing to load). */
+const HA = { x: 90, y: 50, w: 300, h: 424 }; // A4 sheet inside a 480 x 530 canvas
+const HP = { w: 52, h: 67 };                  // placeholder passport photo
+const HACC = "#2a3fd4", HORG = "#e8590c", HINK = "#18221e";
+
+function HPill({ x, y, w, text, c }: { x: number; y: number; w: number; text: string; c: string }) {
   return (
-    <div className={s.helpFrame}>
-      {state === "loading" && <div className={s.spin} role="status" aria-label="Loading image" />}
-      {state === "err" && <p className={s.helpErr}>The image could not be loaded.</p>}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        ref={(el) => { if (el && el.complete && el.naturalWidth > 0) setState("ok"); }}
-        className={s.helpImg + (state === "ok" ? " " + s.helpImgOn : "")}
-        src={src}
-        alt={alt}
-        onLoad={() => setState("ok")}
-        onError={() => setState("err")}
-      />
-    </div>
+    <g>
+      <rect x={x} y={y} width={w} height={26} rx={13} fill="#fff" stroke={c} strokeWidth={1.5} />
+      <text x={x + w / 2} y={y + 17.5} textAnchor="middle" fontSize={13.5} fontWeight={700} fill={c}>{text}</text>
+    </g>
+  );
+}
+const HDot = ({ x, y, c }: { x: number; y: number; c: string }) => <circle cx={x} cy={y} r={3.5} fill={c} />;
+const HLine = ({ x1, y1, x2, y2, c, arrows = false }: { x1: number; y1: number; x2: number; y2: number; c: string; arrows?: boolean }) => (
+  <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={c} strokeWidth={1.6} markerStart={arrows ? `url(#hp-ar-${c.slice(1)})` : undefined} markerEnd={arrows ? `url(#hp-ar-${c.slice(1)})` : undefined} />
+);
+
+function HelpDiagram({ kind, label }: { kind: HelpKey; label: string }) {
+  const m = kind === "sides" ? { l: 36, r: 14, t: 28, b: 20 } : { l: 24, r: 24, t: 24, b: 24 };
+  const cols = 4, rows = 4;
+  const g = (HA.w - m.l - m.r - cols * HP.w) / (cols - 1);
+  const xs = Array.from({ length: cols }, (_, i) => HA.x + m.l + i * (HP.w + g));
+  const ys = Array.from({ length: rows }, (_, j) => HA.y + m.t + j * (HP.h + g));
+  const right = xs[cols - 1] + HP.w, bottom = ys[rows - 1] + HP.h;
+  const marker = (c: string) => (
+    <marker id={`hp-ar-${c.slice(1)}`} viewBox="0 0 8 8" refX={4} refY={4} markerWidth={7} markerHeight={7} orient="auto-start-reverse"><path d="M0 0L8 4L0 8Z" fill={c} /></marker>
+  );
+  const band = { fill: HACC, opacity: 0.26 };
+  return (
+    <svg className={s.helpSvg} viewBox="0 0 480 530" role="img" aria-label={label} fontFamily="inherit">
+      <defs>
+        <symbol id="hp-ph" viewBox={`0 0 ${HP.w} ${HP.h}`}>
+          <rect x={0.4} y={0.4} width={HP.w - 0.8} height={HP.h - 0.8} rx={1.5} fill="#d7e6f5" stroke="#8aa0b4" strokeWidth={0.8} />
+          <circle cx={HP.w / 2} cy={25} r={10} fill="#8ea3b8" />
+          <path d={`M6 ${HP.h - 0.4}C6 50 16 42 ${HP.w / 2} 42C${HP.w - 16} 42 ${HP.w - 6} 50 ${HP.w - 6} ${HP.h - 0.4}Z`} fill="#8ea3b8" />
+        </symbol>
+        {marker(HACC)}{marker(HINK)}
+      </defs>
+      <rect x={HA.x + 3} y={HA.y + 4} width={HA.w} height={HA.h} fill="#0a1f14" opacity={0.12} />
+      <rect x={HA.x} y={HA.y} width={HA.w} height={HA.h} fill="#fff" stroke="#b3beb7" />
+      {ys.map((y) => xs.map((x) => <use key={`${x}-${y}`} href="#hp-ph" x={x} y={y} width={HP.w} height={HP.h} />))}
+
+      {kind === "margin" && (<>
+        <path fillRule="evenodd" fill={HACC} opacity={0.24} d={`M${HA.x} ${HA.y}H${HA.x + HA.w}V${HA.y + HA.h}H${HA.x}Z M${HA.x + m.l} ${HA.y + m.t}H${HA.x + HA.w - m.r}V${HA.y + HA.h - m.b}H${HA.x + m.l}Z`} />
+        <rect x={HA.x + m.l} y={HA.y + m.t} width={HA.w - m.l - m.r} height={HA.h - m.t - m.b} fill="none" stroke={HACC} strokeWidth={1.2} strokeDasharray="5 4" />
+        <HLine x1={HA.x} y1={300} x2={HA.x + m.l} y2={300} c={HACC} arrows />
+        <HLine x1={240} y1={HA.y} x2={240} y2={HA.y + m.t} c={HACC} arrows />
+        <HLine x1={398} y1={251} x2={HA.x + HA.w - 12} y2={251} c={HACC} /><HDot x={HA.x + HA.w - 12} y={251} c={HACC} />
+        <HPill x={398} y={238} w={72} text="Margin" c={HACC} />
+      </>)}
+
+      {kind === "gap" && (<>
+        <g fill={HORG} opacity={0.55}>
+          {xs.slice(0, -1).map((x) => <rect key={`v${x}`} x={x + HP.w} y={ys[0]} width={g} height={bottom - ys[0]} />)}
+          {ys.slice(0, -1).map((y) => <rect key={`h${y}`} x={xs[0]} y={y + HP.h} width={right - xs[0]} height={g} />)}
+        </g>
+        <HLine x1={398} y1={ys[0] + HP.h + g / 2} x2={right - 6} y2={ys[0] + HP.h + g / 2} c={HORG} />
+        <HDot x={right - 6} y={ys[0] + HP.h + g / 2} c={HORG} />
+        <HPill x={398} y={ys[0] + HP.h + g / 2 - 13} w={72} text="Gap" c={HORG} />
+      </>)}
+
+      {kind === "sides" && (<>
+        <rect x={HA.x} y={HA.y} width={m.l} height={HA.h} {...band} />
+        <rect x={HA.x + HA.w - m.r} y={HA.y} width={m.r} height={HA.h} {...band} />
+        <rect x={HA.x + m.l} y={HA.y} width={HA.w - m.l - m.r} height={m.t} {...band} />
+        <rect x={HA.x + m.l} y={HA.y + HA.h - m.b} width={HA.w - m.l - m.r} height={m.b} {...band} />
+        <HLine x1={72} y1={251} x2={HA.x + m.l / 2} y2={251} c={HACC} /><HDot x={HA.x + m.l / 2} y={251} c={HACC} /><HPill x={8} y={238} w={64} text="Left" c={HACC} />
+        <HLine x1={398} y1={251} x2={HA.x + HA.w - m.r / 2} y2={251} c={HACC} /><HDot x={HA.x + HA.w - m.r / 2} y={251} c={HACC} /><HPill x={398} y={238} w={72} text="Right" c={HACC} />
+        <HLine x1={258} y1={38} x2={258} y2={HA.y + m.t / 2} c={HACC} /><HDot x={258} y={HA.y + m.t / 2} c={HACC} /><HPill x={222} y={10} w={72} text="Top" c={HACC} />
+        <HLine x1={258} y1={492} x2={258} y2={HA.y + HA.h - m.b / 2} c={HACC} /><HDot x={258} y={HA.y + HA.h - m.b / 2} c={HACC} /><HPill x={222} y={490} w={72} text="Bottom" c={HACC} />
+      </>)}
+    </svg>
   );
 }
 
@@ -910,7 +964,7 @@ export function PassportSheet() {
         <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="htitle" onMouseDown={e => { if (e.target === e.currentTarget) setHelp(null); }}>
           <div className={s.modalBox + " " + s.helpBox}>
             <h2 id="htitle" className={s.h2}>{HELP[help].title}</h2>
-            <HelpImage key={help} src={HELP[help].img} alt={HELP[help].alt} />
+            <div className={s.helpFrame}><HelpDiagram key={help} kind={help} label={HELP[help].alt} /></div>
             <p className={s.muted}>{HELP[help].text}</p>
             <div className={s.actions}>
               <button type="button" className={s.btn + " " + s.btnSolid} autoFocus onClick={() => setHelp(null)}>Got it</button>

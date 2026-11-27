@@ -61,11 +61,7 @@
 .helpBtn:hover, .helpBtn:focus-visible { border-color: var(--accent, #2a3fd4); color: var(--accent, #2a3fd4); }
 .helpBox { width: min(100%, 30rem); }
 .helpFrame { position: relative; width: min(100%, calc(min(55dvh, 34rem) * 480 / 530)); aspect-ratio: 480 / 530; margin: .75rem auto; border: 1px solid var(--line, #dde4df); border-radius: .5rem; background: #f3f6f4; overflow: hidden; }
-.helpImg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; color: transparent; font-size: 0; opacity: 0; transition: opacity .2s; }
-.helpImgOn { opacity: 1; }
-.spin { position: absolute; top: 50%; left: 50%; width: 2.25rem; height: 2.25rem; margin: -1.125rem 0 0 -1.125rem; border: 3px solid var(--line, #dde4df); border-top-color: var(--accent, #2a3fd4); border-radius: 50%; animation: spin .8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.helpErr { position: absolute; inset: 0; display: grid; place-items: center; padding: 1rem; text-align: center; color: var(--muted, #5a6962); font-size: 13.5px; }
+.helpSvg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 .num {
   width: 100%;
@@ -249,8 +245,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .btn, .toast { transition: none !important; }
-  .spin { animation-duration: 2.4s; }
-  .helpImg { transition: none; }
   .modalBox { animation: none !important; }
 }
 

@@ -30,8 +30,8 @@ The site is a **plain, fluid website**. It must look right at any viewport width
 - Print: `body.ps-printing` hides page chrome and prints only the A4 pages. Keep that working.
 
 ## Help popups (passport tool)
-- The round `i` buttons beside Page margin, Set each side separately and Gap open a dialog with an image and a short text (`HELP` in `PassportSheet.tsx`).
-- Images are static SVGs in `public/help/` with a placeholder passport photo (unknown-person silhouette) and the explained part highlighted. Add a new help topic by adding an SVG there and an entry in `HELP`.
+- The round `i` buttons beside Page margin, Set each side separately and Gap open a dialog with an illustration and a short text (`HELP` in `PassportSheet.tsx`).
+- The illustration is drawn in code as inline SVG (`HelpDiagram`): an A4 sheet with placeholder passport photos (unknown-person silhouette) and the explained part highlighted. No image files, so nothing to load. Add a topic by adding an entry in `HELP` and a branch in `HelpDiagram`.
 
 ## Simple tool pages (Workbench)
 - `.wb` is an auto-fit grid: controls (`.wb-in`) and result (`.wb-out`) sit side by side when there is room and stack on phones. No breakpoint needed.
