@@ -28,8 +28,8 @@ export function ImageResize() {
   const [w, setW] = useState("");
   const [h, setH] = useState("");
   const [lock, setLock] = useState(true);
-  const [fmt, setFmt] = useState("image/png");
-  const [q, setQ] = useState(92);
+  const [fmt, setFmt] = useState("image/jpeg");
+  const [q, setQ] = useState(90);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [out, setOut] = useState<Out[]>([]);
@@ -84,6 +84,7 @@ export function ImageResize() {
     const url = URL.createObjectURL(file);
     urls.current.push(url);
     setName(file.name);
+    setFmt(file.type === "image/png" || file.type === "image/gif" ? "image/png" : "image/jpeg");
     setSrc(url);
   }
 
@@ -186,6 +187,7 @@ export function ImageResize() {
           {fmt !== "image/png" && <label>Quality: {q}<input type="range" min="10" max="100" value={q} onChange={(e) => setQ(+e.target.value)} /></label>}
           <label className="check"><input type="checkbox" checked={lock} onChange={(e) => setLock(e.target.checked)} />Keep aspect ratio<small>When on, typing one side fills the other to match the crop.</small></label>
           <p className="hint">Drag the photo to frame it, or drag the box handles. Leave width and height empty to keep the cropped pixels; fill one or both for an exact size.</p>
+          <p className="hint">JPG and WebP keep files small. PNG is lossless, so it can be many times larger than the photo you started with — use it only when you need transparency.</p>
         </div>
 
         <button className="btn primary" disabled={!src || busy} onClick={run}>{busy ? "Resizing" : "Resize image"}</button>

@@ -9,6 +9,7 @@ Next.js 15 (App Router) + React 19 + TypeScript. No backend. Files never leave t
 - `components/Shell.tsx` — site frame: sticky header, `<main>`, footer. `wide` prop widens the container.
 - `components/tools/Workbench.tsx` — the simple tools (compress, image convert, HEIC to JPG, SVG to PNG, favicon pack, circle crop, watermark, Base64, PDF to image, image to PDF, PDF grayscale, PDF merge/split/rotate/unlock/lock).
 - `components/tools/ImageResize.tsx` — the image resize tool: cropperjs crop stage (free + fixed ratios, rotate/zoom/reset) with optional width/height typing and a format/quality output. Rendered for `image-resize` in `app/tools/[slug]/page.tsx`; it is no longer in `Workbench`.
+  - Default output format follows the input: JPG for photos, PNG only for PNG/GIF (transparency). Never default a photo to PNG — lossless PNG can turn a 150 KB JPEG into multi-MB output. The UI hints at this.
 - `components/tools/PassportSheet.tsx` + `passport.module.css` — the passport photo sheet (crop, MaxRects packing, PDF).
 - `app/globals.css` — global design tokens and layout.
 
