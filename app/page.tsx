@@ -10,14 +10,14 @@ export default function Home() {
         <h1>Everyday file jobs, done on your own device.</h1>
         <p className="lede">Resize and compress photos, build passport sheets, and convert PDFs. Nothing is uploaded, so your documents never leave your phone or laptop.</p>
         <div className="cta">
-          <Link className="btn primary" href="/tools/passport-photo">Make a passport sheet</Link>
+          <Link className="btn primary" href="/tools/passport-photo" prefetch={false}>Make a passport sheet</Link>
           <a className="btn" href="#tools">Browse tools</a>
         </div>
       </section>
 
       <section id="tools" className="tools" aria-label="Tools">
         {TOOLS.map((t, i) => (
-          <Link key={t.slug} href={`/tools/${t.slug}`} className={`cell t-${t.slug}`} style={{ "--i": i } as React.CSSProperties}>
+          <Link key={t.slug} href={`/tools/${t.slug}`} prefetch={false} className={`cell t-${t.slug}`} style={{ "--i": i } as React.CSSProperties}>
             <Icon slug={t.slug} />
             <h2>{t.name}</h2>
             <p>{t.blurb}</p>

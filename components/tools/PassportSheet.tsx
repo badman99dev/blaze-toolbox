@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Cropper from "cropperjs";
+import "cropperjs/dist/cropper.css";
 import s from "./passport.module.css";
 
 type Item = { id: number; src: string; bg: string | null; w: number; h: number; n: number };

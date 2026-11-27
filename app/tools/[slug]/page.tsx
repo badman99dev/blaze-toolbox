@@ -1,10 +1,11 @@
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Shell } from "@/components/Shell";
 import { Icon } from "@/components/Icon";
-import { Workbench } from "@/components/tools/Workbench";
-import { PassportSheet } from "@/components/tools/PassportSheet";
+const Workbench = dynamic(() => import("@/components/tools/Workbench").then((m) => m.Workbench));
+const PassportSheet = dynamic(() => import("@/components/tools/PassportSheet").then((m) => m.PassportSheet));
 import { TOOLS } from "@/lib/tools";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -33,7 +34,7 @@ export default async function ToolPage({ params }: Props) {
       ) : (
         <Workbench slug={t.slug} />
       )}
-      <div className="cta"><Link className="btn" href="/">All tools</Link></div>
+      <div className="cta"><Link className="btn" href="/" prefetch={false}>All tools</Link></div>
     </Shell>
   );
 }

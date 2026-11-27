@@ -37,6 +37,12 @@ The site is a **plain, fluid website**. It must look right at any viewport width
 - `.wb` is an auto-fit grid: controls (`.wb-in`) and result (`.wb-out`) sit side by side when there is room and stack on phones. No breakpoint needed.
 - Keep it that way: new simple tools plug into `Workbench.tsx` and inherit this layout.
 
+## Loading rules (keep the site light as tools grow)
+- Every tool page is static, but nothing is fetched until the user opens it: all `<Link>`s use `prefetch={false}`.
+- Tool components are loaded with `next/dynamic` in `app/tools/[slug]/page.tsx`, so opening one tool never downloads another tool's code. Do not import tool components statically there.
+- Tool-only CSS and libraries (e.g. `cropperjs` and its CSS) are imported inside that tool's component, never in `layout.tsx`.
+- Heavy libs used on a button press (`pdf-lib`, `pdfjs-dist`) stay behind `await import(...)`.
+
 ## Adding a tool
 1. Add an entry to `TOOLS` in `lib/tools.ts` and an icon in `components/Icon.tsx`.
 2. Simple tool: add a config in `Workbench.tsx`. Complex tool: new component in `components/tools/`, then render it in `app/tools/[slug]/page.tsx`.

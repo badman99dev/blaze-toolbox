@@ -16,8 +16,8 @@ export function Shell({ children, wide = false }: { children: React.ReactNode; w
     <div className="site">
       <header className="top">
         <div className={wrap}>
-          <Link href="/" className="brand"><Mark />Blaze Toolbox</Link>
-          <nav aria-label="Main"><a href="/#tools">Tools</a><a href="/#privacy">Privacy</a></nav>
+          <Link href="/" prefetch={false} className="brand"><Mark />Blaze Toolbox</Link>
+          <nav aria-label="Main"><Link href="/#tools" prefetch={false}>Tools</Link><Link href="/#privacy" prefetch={false}>Privacy</Link></nav>
         </div>
       </header>
       <main className={wrap}>{children}</main>
