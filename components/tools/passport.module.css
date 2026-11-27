@@ -60,7 +60,7 @@
 .helpBtn::after { content: ""; position: absolute; inset: -.5rem; }
 .helpBtn:hover, .helpBtn:focus-visible { border-color: var(--accent, #2a3fd4); color: var(--accent, #2a3fd4); }
 .helpBox { width: min(100%, 30rem); }
-.helpImg { display: block; width: 100%; max-height: min(55dvh, 34rem); object-fit: contain; margin: .75rem auto; border: 1px solid var(--line, #dde4df); border-radius: .5rem; background: #f3f6f4; }
+.helpImg { display: block; width: 100%; aspect-ratio: 480 / 530; max-height: min(55dvh, 34rem); object-fit: contain; color: transparent; font-size: 0; margin: .75rem auto; border: 1px solid var(--line, #dde4df); border-radius: .5rem; background: #f3f6f4; }
 
 .num {
   width: 100%;
