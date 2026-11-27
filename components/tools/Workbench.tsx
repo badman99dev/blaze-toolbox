@@ -72,15 +72,13 @@ async function getQpdf(): Promise<Qpdf> {
   }
   return qpdfReady;
 }
-async function unlockPdf(bytes: Uint8Array, password: string) {
+async function qpdfRun(bytes: Uint8Array, makeArgs: (input: string, output: string) => string[]) {
   const qpdf = await getQpdf();
   const fs = qpdf.FS;
   try { fs.unlink("in.pdf"); } catch { /* no previous file */ }
   try { fs.unlink("out.pdf"); } catch { /* no previous file */ }
   fs.writeFile("in.pdf", bytes);
-  const args = ["--decrypt"];
-  if (password) args.push(`--password=${password}`);
-  args.push("--", "in.pdf", "out.pdf");
+  const args = makeArgs("in.pdf", "out.pdf");
   await new Promise((r) => setTimeout(r, 0));
   let code = 0;
   try { code = qpdf.callMain(args); } catch (e: any) { code = e?.status ?? 1; }
@@ -88,6 +86,15 @@ async function unlockPdf(bytes: Uint8Array, password: string) {
   try { out = fs.readFile("out.pdf"); } catch { /* qpdf did not write one */ }
   try { fs.unlink("in.pdf"); } catch { /* ignore */ }
   try { fs.unlink("out.pdf"); } catch { /* ignore */ }
+  return { out, code };
+}
+async function unlockPdf(bytes: Uint8Array, password: string) {
+  const { out, code } = await qpdfRun(bytes, (input, output) => {
+    const args = ["--decrypt"];
+    if (password) args.push(`--password=${password}`);
+    args.push("--", input, output);
+    return args;
+  });
   if (!out || !out.length) {
     if (code === 2) {
       throw new Error(password
@@ -96,6 +103,17 @@ async function unlockPdf(bytes: Uint8Array, password: string) {
     }
     throw new Error("Could not unlock this PDF. It may be damaged or use an unsupported protection.");
   }
+  return out;
+}
+async function lockPdf(bytes: Uint8Array, password: string, allowPrint: boolean, allowCopy: boolean) {
+  const { out } = await qpdfRun(bytes, (input, output) => {
+    const args = ["--encrypt", password, password, "256"];
+    if (!allowPrint) args.push("--print=none");
+    if (!allowCopy) args.push("--extract=n");
+    args.push("--", input, output);
+    return args;
+  });
+  if (!out || !out.length) throw new Error("Could not add a password to this PDF. It may be damaged or already encrypted.");
   return out;
 }
 function buildIco(images: { size: number; bytes: Uint8Array }[]) {
@@ -147,6 +165,7 @@ const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: s
   "pdf-split": { accept: "application/pdf", multi: false, hint: "One PDF. Choose the pages to keep.", cta: "Split" },
   "pdf-rotate": { accept: "application/pdf", multi: false, hint: "One PDF.", cta: "Rotate" },
   "pdf-unlock": { accept: "application/pdf", multi: false, hint: "One PDF. Enter its password if it asks for one.", cta: "Unlock" },
+  "pdf-lock": { accept: "application/pdf", multi: false, hint: "One PDF. Choose a password to open it.", cta: "Lock" },
 };
 
 export function Workbench({ slug }: { slug: string }) {
@@ -174,6 +193,8 @@ export function Workbench({ slug }: { slug: string }) {
   const [angle, setAngle] = useState("90");
   const [b64Mode, setB64Mode] = useState("data");
   const [pdfPw, setPdfPw] = useState("");
+  const [allowPrint, setAllowPrint] = useState(true);
+  const [allowCopy, setAllowCopy] = useState(true);
   const urls = useRef<string[]>([]);
 
   const keep = (blob: Blob) => { const u = URL.createObjectURL(blob); urls.current.push(u); return u; };
@@ -402,6 +423,13 @@ export function Workbench({ slug }: { slug: string }) {
         const out = await unlockPdf(bytes, pdfPw);
         const blob = new Blob([out as unknown as BlobPart], { type: "application/pdf" });
         res.push({ name: `${base(files[0].name)}-unlocked.pdf`, url: keep(blob), note: `Unlocked copy, ${kb(blob.size)}` });
+      } else if (slug === "pdf-lock") {
+        if (!pdfPw) throw new Error("Choose a password first.");
+        setStatus("Adding password");
+        const bytes = new Uint8Array(await files[0].arrayBuffer());
+        const out = await lockPdf(bytes, pdfPw, allowPrint, allowCopy);
+        const blob = new Blob([out as unknown as BlobPart], { type: "application/pdf" });
+        res.push({ name: `${base(files[0].name)}-locked.pdf`, url: keep(blob), note: `Password-protected, ${kb(blob.size)}` });
       }
       setOut(res);
     } catch (e) {
@@ -521,6 +549,12 @@ export function Workbench({ slug }: { slug: string }) {
         {slug === "pdf-unlock" && <>
           <label>Password<input type="password" value={pdfPw} onChange={(e) => setPdfPw(e.target.value)} placeholder="Only if it asks for one" autoComplete="off" /></label>
           <p className="hint">Use this for PDFs you own or are allowed to unlock. The file and password never leave your device. A PDF that cannot be opened without its password cannot be unlocked without it.</p>
+        </>}
+        {slug === "pdf-lock" && <>
+          <label>Password<input type="password" value={pdfPw} onChange={(e) => setPdfPw(e.target.value)} placeholder="Password to open the PDF" autoComplete="new-password" /></label>
+          <label className="check"><input type="checkbox" checked={allowPrint} onChange={(e) => setAllowPrint(e.target.checked)} />Allow printing<small>Turn off to block printing on most viewers.</small></label>
+          <label className="check"><input type="checkbox" checked={allowCopy} onChange={(e) => setAllowCopy(e.target.checked)} />Allow copying text<small>Turn off to block selecting and copying text.</small></label>
+          <p className="hint">AES-256 encryption. The file and password never leave your device. Keep the password safe — there is no recovery if you lose it.</p>
         </>}
       </div>
 
