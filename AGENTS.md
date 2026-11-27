@@ -4,12 +4,16 @@ Guidance for AI agents and contributors working on **Blaze Toolbox**: on-device 
 Next.js 15 (App Router) + React 19 + TypeScript. No backend. Files never leave the user's device.
 
 ## Project map
-- `lib/tools.ts` — the list of tools (`slug`, `name`, `blurb`, `meta`). Home grid and static routes come from this.
+- `lib/tools.ts` — the list of tools (`slug`, `name`, `blurb`, `meta`, `cat`) and the `CATEGORIES`. Home grid and static routes come from this.
 - `app/page.tsx` — home. `app/tools/[slug]/page.tsx` — one static page per tool.
 - `components/Shell.tsx` — site frame: sticky header, `<main>`, footer. `wide` prop widens the container.
 - `components/tools/Workbench.tsx` — the simple tools (resize, compress, pdf-to-image, image-to-pdf, pdf-grayscale).
 - `components/tools/PassportSheet.tsx` + `passport.module.css` — the passport photo sheet (crop, MaxRects packing, PDF).
 - `app/globals.css` — global design tokens and layout.
+
+## Home categories
+- Every tool in `lib/tools.ts` has a `cat`: `everyday` (normal users), `edit` (photo/image editing), or `dev` (developer/technical). `CATEGORIES` holds the section order, titles and descriptions.
+- The home page renders one `.tools` auto-fit grid per category with a `.tools-head` heading. Keep that order (everyday first, then editing, then developer). Adding a tool only needs a `cat` — no hard-coded lists. Same `.cell` markup, so the fluid rules below apply automatically.
 
 ## Layout rules (important)
 The site is a **plain, fluid website**. It must look right at any viewport width and any browser zoom (25% to 500%).
