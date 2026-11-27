@@ -1,5 +1,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { Suspense } from "react";
+import { Loader } from "@/components/Loader";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Shell } from "@/components/Shell";
@@ -29,11 +31,9 @@ export default async function ToolPage({ params }: Props) {
         <h1>{t.name}</h1>
         <p className="lede">{t.blurb}</p>
       </section>
-      {t.slug === "passport-photo" ? (
-        <PassportSheet />
-      ) : (
-        <Workbench slug={t.slug} />
-      )}
+      <Suspense fallback={<Loader compact label="Loading tool…" />}>
+        {t.slug === "passport-photo" ? <PassportSheet /> : <Workbench slug={t.slug} />}
+      </Suspense>
       <div className="cta"><Link className="btn" href="/" prefetch={false}>All tools</Link></div>
     </Shell>
   );
