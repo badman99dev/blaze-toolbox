@@ -7,7 +7,8 @@
   --accent:#2a3fd4; --accent-d:#2234b8; --bad:#b3261e;
   --r:.5rem;
   --gutter:clamp(1rem,4vw,2.5rem);
-  --maxw:75rem;
+  --maxw:max(75rem,min(72vw,110rem));   /* grows when the viewport grows (zoom-out, big screens) */
+  --maxw-wide:max(90rem,min(94vw,160rem));
   --fs-display:clamp(2.25rem,1.2rem + 4.6vw,4.5rem);
   --fs-lede:clamp(1.0625rem,1rem + .35vw,1.25rem);
   --fs-body:1rem; --fs-small:.875rem;
@@ -26,7 +27,7 @@ a{color:inherit}
 .site{min-height:100dvh;display:flex;flex-direction:column}
 .site>main{flex:1 0 auto;width:100%}
 .wrap{width:100%;max-width:var(--maxw);margin-inline:auto;padding-inline:var(--gutter)}
-.wrap.wide{max-width:90rem}
+.wrap.wide{max-width:var(--maxw-wide)}
 
 .top{position:sticky;top:0;z-index:30;background:rgb(255 255 255 / .92);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
 .top .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.25rem 1rem;min-height:3.75rem;padding-block:.5rem}

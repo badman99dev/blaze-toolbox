@@ -15,14 +15,14 @@ export function Shell({ children, wide = false }: { children: React.ReactNode; w
   return (
     <div className="site">
       <header className="top">
-        <div className="wrap">
+        <div className={wrap}>
           <Link href="/" className="brand"><Mark />Blaze Toolbox</Link>
           <nav aria-label="Main"><a href="/#tools">Tools</a><a href="/#privacy">Privacy</a></nav>
         </div>
       </header>
       <main className={wrap}>{children}</main>
       <footer className="foot">
-        <div className="wrap">Blaze Toolbox. Your files are processed on your device and never uploaded.</div>
+        <div className={wrap}>Blaze Toolbox. Your files are processed on your device and never uploaded.</div>
       </footer>
     </div>
   );

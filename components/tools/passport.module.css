@@ -1,7 +1,7 @@
 .app {
   display: grid;
-  grid-template-columns: clamp(19rem, 27vw, 24rem) minmax(0, 1fr);
-  height: clamp(40rem, 86dvh, 62rem);
+  grid-template-columns: clamp(19rem, 26vw, 32rem) minmax(0, 1fr);
+  height: clamp(40rem, calc(100dvh - 11rem), 200rem);
   border: 1px solid var(--line, #dde4df);
   border-radius: .75rem;
   overflow: hidden;

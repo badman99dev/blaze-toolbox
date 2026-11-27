@@ -361,7 +361,7 @@ export function PassportSheet() {
     const calc = () => {
       const cs = getComputedStyle(stage);
       const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-      const fit = Math.min(1.25, (stage.clientWidth - pad) / (220 * MM));
+      const fit = Math.min(1.6, (stage.clientWidth - pad) / (220 * MM));
       setZ(Math.max(0.2, fit * zoomMul));
     };
     calc();
