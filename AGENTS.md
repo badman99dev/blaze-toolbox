@@ -36,6 +36,8 @@ The site is a **plain, fluid website**. It must look right at any viewport width
 ## Simple tool pages (Workbench)
 - `.wb` is an auto-fit grid: controls (`.wb-in`) and result (`.wb-out`) sit side by side when there is room and stack on phones. No breakpoint needed.
 - Keep it that way: new simple tools plug into `Workbench.tsx` and inherit this layout.
+- Tools handled here: resize, compress, image convert, HEIC to JPG, SVG to PNG, favicon pack, circle crop, watermark, image to Base64, PDF to image, image to PDF, PDF grayscale, PDF merge, PDF split, PDF rotate.
+- New controls live in the `.opts` auto-fit grid (`label` with input/select/range/checkbox) so they reflow and keep `2.75rem` touch targets. Text and colour inputs are styled globally.
 
 ## Loading rules (keep the site light as tools grow)
 - Every tool page is static, but nothing is fetched until the user opens it: all `<Link>`s use `prefetch={false}`.

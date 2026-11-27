@@ -4,9 +4,9 @@ import { useRef, useState } from "react";
 type Out = { name: string; url: string; note: string };
 const kb = (n: number) => (n > 1048576 ? (n / 1048576).toFixed(2) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
 const base = (n: string) => n.replace(/\.[^.]+$/, "");
-const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" };
 const toBlob = (c: HTMLCanvasElement, type: string, q?: number) =>
-  new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error("This browser could not export that format."))), type, q));
+  new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error("This browser could not export that format. Try PNG, JPG or WebP."))), type, q));
 
 function draw(b: ImageBitmap, w: number, h: number) {
   const c = document.createElement("canvas");
@@ -17,6 +17,14 @@ function draw(b: ImageBitmap, w: number, h: number) {
   x.drawImage(b, 0, 0, w, h);
   return c;
 }
+function canvas(w: number, h: number, fill?: string) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const x = c.getContext("2d")!;
+  if (fill) { x.fillStyle = fill; x.fillRect(0, 0, w, h); }
+  x.imageSmoothingQuality = "high";
+  return { c, x };
+}
 function gray(c: HTMLCanvasElement, contrast = 1, lift = 0) {
   const x = c.getContext("2d")!;
   const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
@@ -25,6 +33,46 @@ function gray(c: HTMLCanvasElement, contrast = 1, lift = 0) {
     p[i] = p[i + 1] = p[i + 2] = g;
   }
   x.putImageData(d, 0, 0);
+}
+function loadImg(src: string) {
+  return new Promise<HTMLImageElement>((ok, no) => {
+    const im = new Image();
+    im.onload = () => ok(im);
+    im.onerror = () => no(new Error("Could not read that image."));
+    im.src = src;
+  });
+}
+function parsePages(input: string, total: number) {
+  const set = new Set<number>();
+  input.split(",").map((s) => s.trim()).filter(Boolean).forEach((part) => {
+    const m = part.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m) {
+      let a = +m[1], b = +m[2];
+      if (a > b) { const t = a; a = b; b = t; }
+      for (let i = a; i <= b; i++) if (i >= 1 && i <= total) set.add(i);
+    } else if (/^\d+$/.test(part)) {
+      const n = +part;
+      if (n >= 1 && n <= total) set.add(n);
+    }
+  });
+  return [...set].sort((a, b) => a - b);
+}
+function buildIco(images: { size: number; bytes: Uint8Array }[]) {
+  const header = 6 + 16 * images.length;
+  const total = header + images.reduce((s, i) => s + i.bytes.length, 0);
+  const out = new Uint8Array(total);
+  const dv = new DataView(out.buffer);
+  dv.setUint16(0, 0, true); dv.setUint16(2, 1, true); dv.setUint16(4, images.length, true);
+  let off = header;
+  images.forEach((im, i) => {
+    const p = 6 + i * 16;
+    const s = im.size >= 256 ? 0 : im.size;
+    out[p] = s; out[p + 1] = s; out[p + 2] = 0; out[p + 3] = 0;
+    dv.setUint16(p + 4, 1, true); dv.setUint16(p + 6, 32, true);
+    dv.setUint32(p + 8, im.bytes.length, true); dv.setUint32(p + 12, off, true);
+    out.set(im.bytes, off); off += im.bytes.length;
+  });
+  return out;
 }
 async function openPdf(file: File) {
   const pdfjs = await import("pdfjs-dist");
@@ -44,9 +92,19 @@ async function renderPage(doc: Awaited<ReturnType<typeof openPdf>>, n: number, s
 const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: string }> = {
   "image-resize": { accept: "image/*", multi: true, hint: "JPG, PNG or WebP. You can pick several.", cta: "Resize" },
   "image-compress": { accept: "image/*", multi: true, hint: "JPG, PNG or WebP. You can pick several.", cta: "Compress" },
+  "image-convert": { accept: "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp", multi: true, hint: "Pick images to convert. You can choose several.", cta: "Convert" },
+  "heic-to-jpg": { accept: ".heic,.heif,image/heic,image/heif", multi: true, hint: "iPhone HEIC or HEIF photos. You can pick several.", cta: "Convert" },
+  "svg-to-png": { accept: ".svg,image/svg+xml", multi: true, hint: "One or more SVG files.", cta: "Rasterize" },
+  "favicon-generator": { accept: "image/*", multi: false, hint: "One square image works best.", cta: "Build icon pack" },
+  "circle-crop": { accept: "image/*", multi: true, hint: "Pick photos to turn into round avatars.", cta: "Crop to circle" },
+  "watermark": { accept: "image/*", multi: true, hint: "Pick photos to watermark.", cta: "Add watermark" },
+  "image-to-base64": { accept: "image/*", multi: true, hint: "Pick images to encode.", cta: "Encode" },
   "pdf-to-image": { accept: "application/pdf", multi: false, hint: "One PDF. Every page becomes an image.", cta: "Convert pages" },
   "image-to-pdf": { accept: "image/*", multi: true, hint: "Pick photos in the order you want the pages.", cta: "Make PDF" },
   "pdf-grayscale": { accept: "application/pdf", multi: false, hint: "One color PDF.", cta: "Convert to grayscale" },
+  "pdf-merge": { accept: "application/pdf", multi: true, hint: "Pick PDFs in the order to join. Choose again to replace and reorder.", cta: "Merge" },
+  "pdf-split": { accept: "application/pdf", multi: false, hint: "One PDF. Choose the pages to keep.", cta: "Split" },
+  "pdf-rotate": { accept: "application/pdf", multi: false, hint: "One PDF.", cta: "Rotate" },
 };
 
 export function Workbench({ slug }: { slug: string }) {
@@ -57,10 +115,22 @@ export function Workbench({ slug }: { slug: string }) {
   const [status, setStatus] = useState("");
   const [err, setErr] = useState("");
   const [w, setW] = useState(""); const [h, setH] = useState("");
-  const [fmt, setFmt] = useState(slug === "image-compress" ? "image/jpeg" : "image/png");
+  const [fmt, setFmt] = useState(slug === "image-compress" || slug === "heic-to-jpg" || slug === "watermark" ? "image/jpeg" : slug === "image-convert" ? "image/webp" : "image/png");
   const [q, setQ] = useState(70);
   const [scale, setScale] = useState(2);
   const [scan, setScan] = useState(true);
+  const [svgW, setSvgW] = useState("512");
+  const [avatarSize, setAvatarSize] = useState("512");
+  const [bgc, setBgc] = useState("#ffffff");
+  const [wmText, setWmText] = useState("© Your name");
+  const [wmPos, setWmPos] = useState("bottom-right");
+  const [wmOpacity, setWmOpacity] = useState(60);
+  const [wmSize, setWmSize] = useState(5);
+  const [wmColor, setWmColor] = useState("#ffffff");
+  const [range, setRange] = useState("1-3");
+  const [perPage, setPerPage] = useState(false);
+  const [angle, setAngle] = useState("90");
+  const [b64Mode, setB64Mode] = useState("data");
   const urls = useRef<string[]>([]);
 
   const keep = (blob: Blob) => { const u = URL.createObjectURL(blob); urls.current.push(u); return u; };
@@ -88,6 +158,122 @@ export function Workbench({ slug }: { slug: string }) {
             ? `${kb(f.size)} to ${kb(blob.size)} (${blob.size < f.size ? "-" : "+"}${Math.abs(Math.round((1 - blob.size / f.size) * 100))}%)`
             : `${tw} × ${th} px, ${kb(blob.size)}`;
           res.push({ name: `${base(f.name)}-${slug === "image-resize" ? `${tw}x${th}` : "compressed"}.${EXT[type]}`, url: keep(blob), note });
+        }
+      } else if (slug === "image-convert") {
+        for (const f of files) {
+          setStatus(`Converting ${f.name}`);
+          const b = await createImageBitmap(f);
+          const { c, x } = canvas(b.width, b.height, fmt === "image/jpeg" ? "#fff" : undefined);
+          x.drawImage(b, 0, 0, c.width, c.height);
+          const blob = await toBlob(c, fmt, q / 100);
+          res.push({ name: `${base(f.name)}-converted.${EXT[fmt]}`, url: keep(blob), note: `${EXT[fmt].toUpperCase()}, ${c.width} × ${c.height} px, ${kb(blob.size)}` });
+        }
+      } else if (slug === "heic-to-jpg") {
+        const heicMod = await import("heic2any");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const heic2any: any = (heicMod as any).default ?? heicMod;
+        for (const f of files) {
+          setStatus(`Converting ${f.name}`);
+          const conv = await heic2any({ blob: f, toType: "image/png" });
+          const srcBlob = Array.isArray(conv) ? conv[0] : conv;
+          const b = await createImageBitmap(srcBlob);
+          const { c, x } = canvas(b.width, b.height, fmt === "image/jpeg" ? "#fff" : undefined);
+          x.drawImage(b, 0, 0, c.width, c.height);
+          const blob = await toBlob(c, fmt, q / 100);
+          res.push({ name: `${base(f.name)}.${EXT[fmt]}`, url: keep(blob), note: `${EXT[fmt].toUpperCase()}, ${c.width} × ${c.height} px, ${kb(blob.size)}` });
+        }
+      } else if (slug === "svg-to-png") {
+        const W = Math.max(1, Math.min(4096, parseInt(svgW) || 512));
+        for (const f of files) {
+          setStatus(`Rendering ${f.name}`);
+          const url = URL.createObjectURL(f);
+          try {
+            const im = await loadImg(url);
+            const ratio = im.naturalWidth && im.naturalHeight ? im.naturalHeight / im.naturalWidth : 1;
+            const H = Math.max(1, Math.round(W * ratio));
+            const { c, x } = canvas(W, H);
+            x.drawImage(im, 0, 0, W, H);
+            const blob = await toBlob(c, "image/png");
+            res.push({ name: `${base(f.name)}-${W}x${H}.png`, url: keep(blob), note: `${W} × ${H} px, ${kb(blob.size)}` });
+          } finally { URL.revokeObjectURL(url); }
+        }
+      } else if (slug === "favicon-generator") {
+        const url = URL.createObjectURL(files[0]);
+        try {
+          const im = await loadImg(url);
+          const sizes = [16, 32, 48, 64, 128, 180, 192, 512];
+          const pngs: { size: number; bytes: Uint8Array }[] = [];
+          for (const s of sizes) {
+            setStatus(`Drawing ${s} px icon`);
+            const { c, x } = canvas(s, s, bgc);
+            const nw = im.naturalWidth || s, nh = im.naturalHeight || s;
+            const sc = Math.max(s / nw, s / nh);
+            const dw = nw * sc, dh = nh * sc;
+            x.drawImage(im, (s - dw) / 2, (s - dh) / 2, dw, dh);
+            const blob = await toBlob(c, "image/png");
+            pngs.push({ size: s, bytes: new Uint8Array(await blob.arrayBuffer()) });
+          }
+          const ico = buildIco(pngs.filter((p) => p.size <= 48));
+          const jsZipMod = await import("jszip");
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const JSZip: any = (jsZipMod as any).default ?? jsZipMod;
+          const zip = new JSZip();
+          for (const p of pngs) zip.file(`icon-${p.size}x${p.size}.png`, p.bytes);
+          zip.file("favicon.ico", ico);
+          zip.file("README.txt", "Blaze Toolbox icon pack\n\n- favicon.ico: classic browser tab icon\n- 180x180: apple-touch-icon\n- 192x192, 512x512: Android / PWA\n- others: generic PNG sizes\n");
+          const blob = await zip.generateAsync({ type: "blob" });
+          res.push({ name: "icons.zip", url: keep(blob), note: `${pngs.length + 2} files, ${kb(blob.size)}` });
+        } finally { URL.revokeObjectURL(url); }
+      } else if (slug === "circle-crop") {
+        const S = Math.max(32, Math.min(4096, parseInt(avatarSize) || 512));
+        for (const f of files) {
+          setStatus(`Cropping ${f.name}`);
+          const b = await createImageBitmap(f);
+          const { c, x } = canvas(S, S);
+          x.save();
+          x.beginPath(); x.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); x.clip();
+          const sc = Math.max(S / b.width, S / b.height);
+          const dw = b.width * sc, dh = b.height * sc;
+          x.drawImage(b, (S - dw) / 2, (S - dh) / 2, dw, dh);
+          x.restore();
+          const blob = await toBlob(c, "image/png");
+          res.push({ name: `${base(f.name)}-round.png`, url: keep(blob), note: `${S} × ${S} px, transparent, ${kb(blob.size)}` });
+        }
+      } else if (slug === "watermark") {
+        for (const f of files) {
+          setStatus(`Watermarking ${f.name}`);
+          const b = await createImageBitmap(f);
+          const c = draw(b, b.width, b.height);
+          const x = c.getContext("2d")!;
+          const fs = Math.max(10, Math.round((Math.min(c.width, c.height) * wmSize) / 100));
+          x.font = `600 ${fs}px system-ui, -apple-system, sans-serif`;
+          x.globalAlpha = Math.max(0.05, Math.min(1, wmOpacity / 100));
+          x.fillStyle = wmColor;
+          x.shadowColor = "rgba(0,0,0,.5)"; x.shadowBlur = Math.max(2, fs * 0.18);
+          const m = x.measureText(wmText);
+          const pad = Math.round(fs * 0.7);
+          let px = pad, py = pad + fs / 2;
+          if (wmPos === "bottom-right") { px = c.width - pad - m.width; py = c.height - pad - fs / 2; }
+          else if (wmPos === "bottom-left") { px = pad; py = c.height - pad - fs / 2; }
+          else if (wmPos === "top-right") { px = c.width - pad - m.width; py = pad + fs / 2; }
+          else if (wmPos === "center") { px = (c.width - m.width) / 2; py = c.height / 2; }
+          x.textBaseline = "middle";
+          x.fillText(wmText, px, py);
+          const blob = await toBlob(c, fmt, q / 100);
+          res.push({ name: `${base(f.name)}-watermark.${EXT[fmt]}`, url: keep(blob), note: `${c.width} × ${c.height} px, ${kb(blob.size)}` });
+        }
+      } else if (slug === "image-to-base64") {
+        for (const f of files) {
+          setStatus(`Encoding ${f.name}`);
+          const dataUrl = await new Promise<string>((ok, no) => {
+            const r = new FileReader();
+            r.onload = () => ok(String(r.result));
+            r.onerror = () => no(new Error("Could not read that file."));
+            r.readAsDataURL(f);
+          });
+          const text = b64Mode === "img" ? `<img src="${dataUrl}" alt="${f.name}" />` : b64Mode === "css" ? `background-image: url("${dataUrl}");` : dataUrl;
+          const blob = new Blob([text], { type: "text/plain" });
+          res.push({ name: `${base(f.name)}-base64.txt`, url: keep(blob), note: `${b64Mode === "data" ? "Data URI" : b64Mode === "img" ? "HTML tag" : "CSS rule"}, ${kb(blob.size)}` });
         }
       } else if (slug === "pdf-to-image") {
         const doc = await openPdf(files[0]);
@@ -124,6 +310,49 @@ export function Workbench({ slug }: { slug: string }) {
         }
         const blob = new Blob([(await pdf.save()) as unknown as BlobPart], { type: "application/pdf" });
         res.push({ name: `${base(files[0].name)}-grayscale.pdf`, url: keep(blob), note: `${kb(files[0].size)} to ${kb(blob.size)}` });
+      } else if (slug === "pdf-merge") {
+        const { PDFDocument } = await import("pdf-lib");
+        const merged = await PDFDocument.create();
+        for (let i = 0; i < files.length; i++) {
+          setStatus(`Adding ${files[i].name}`);
+          const src = await PDFDocument.load(await files[i].arrayBuffer());
+          const pages = await merged.copyPages(src, src.getPageIndices());
+          pages.forEach((p) => merged.addPage(p));
+        }
+        const blob = new Blob([(await merged.save()) as unknown as BlobPart], { type: "application/pdf" });
+        res.push({ name: "merged.pdf", url: keep(blob), note: `${files.length} files, ${merged.getPageCount()} pages, ${kb(blob.size)}` });
+      } else if (slug === "pdf-split") {
+        const { PDFDocument } = await import("pdf-lib");
+        const src = await PDFDocument.load(await files[0].arrayBuffer());
+        const total = src.getPageCount();
+        if (perPage) {
+          for (let i = 1; i <= total; i++) {
+            setStatus(`Saving page ${i} of ${total}`);
+            const out = await PDFDocument.create();
+            const [pg] = await out.copyPages(src, [i - 1]);
+            out.addPage(pg);
+            const blob = new Blob([(await out.save()) as unknown as BlobPart], { type: "application/pdf" });
+            res.push({ name: `${base(files[0].name)}-page-${i}.pdf`, url: keep(blob), note: `1 page, ${kb(blob.size)}` });
+          }
+        } else {
+          const sel = parsePages(range, total);
+          if (!sel.length) throw new Error(`Enter page numbers between 1 and ${total}, like 1-3 or 2,5,7.`);
+          const out = await PDFDocument.create();
+          const pages = await out.copyPages(src, sel.map((n) => n - 1));
+          pages.forEach((p) => out.addPage(p));
+          const blob = new Blob([(await out.save()) as unknown as BlobPart], { type: "application/pdf" });
+          res.push({ name: `${base(files[0].name)}-pages.pdf`, url: keep(blob), note: `${sel.length} of ${total} pages, ${kb(blob.size)}` });
+        }
+      } else if (slug === "pdf-rotate") {
+        const { PDFDocument, degrees } = await import("pdf-lib");
+        const src = await PDFDocument.load(await files[0].arrayBuffer());
+        const total = src.getPageCount();
+        const sel = range.trim() ? parsePages(range, total) : Array.from({ length: total }, (_, i) => i + 1);
+        if (!sel.length) throw new Error(`Enter page numbers between 1 and ${total}, or leave it empty for all pages.`);
+        const add = Number(angle);
+        sel.forEach((n) => { const p = src.getPage(n - 1); p.setRotation(degrees((p.getRotation().angle + add) % 360)); });
+        const blob = new Blob([(await src.save()) as unknown as BlobPart], { type: "application/pdf" });
+        res.push({ name: `${base(files[0].name)}-rotated.pdf`, url: keep(blob), note: `${sel.length} page(s) turned ${add}°, ${kb(blob.size)}` });
       }
       setOut(res);
     } catch (e) {
@@ -131,12 +360,14 @@ export function Workbench({ slug }: { slug: string }) {
     } finally { setBusy(false); setStatus(""); }
   }
 
-  const imgFmt = (
+  const imgFmt = (withAvif = false) => (
     <label>Format
       <select value={fmt} onChange={(e) => setFmt(e.target.value)}>
-        {slug !== "image-compress" && <option value="image/png">PNG</option>}
+        {slug !== "image-compress" && !withAvif && <option value="image/png">PNG</option>}
+        {withAvif && <option value="image/png">PNG</option>}
         <option value="image/jpeg">JPG</option>
         <option value="image/webp">WebP</option>
+        {withAvif && <option value="image/avif">AVIF</option>}
       </select>
     </label>
   );
@@ -154,13 +385,61 @@ export function Workbench({ slug }: { slug: string }) {
         {slug === "image-resize" && <>
           <label>Width (px)<input type="number" min="1" value={w} onChange={(e) => setW(e.target.value)} /></label>
           <label>Height (px)<input type="number" min="1" value={h} onChange={(e) => setH(e.target.value)} /></label>
-          {imgFmt}
+          {imgFmt()}
           <p className="hint">Fill one side to keep the aspect ratio. Fill both for an exact size.</p>
         </>}
         {slug === "image-compress" && <>
           <label>Quality: {q}<input type="range" min="10" max="95" value={q} onChange={(e) => setQ(+e.target.value)} /></label>
-          {imgFmt}
+          {imgFmt()}
           <p className="hint">Lower quality gives a smaller file. PNG photos are saved as JPG or WebP.</p>
+        </>}
+        {slug === "image-convert" && <>
+          {imgFmt(true)}
+          <label>Quality: {q}<input type="range" min="10" max="100" value={q} onChange={(e) => setQ(+e.target.value)} /></label>
+          <p className="hint">WebP and AVIF give the smallest files. AVIF needs a modern browser; if it is missing, use WebP.</p>
+        </>}
+        {slug === "heic-to-jpg" && <>
+          {imgFmt()}
+          <label>Quality: {q}<input type="range" min="10" max="100" value={q} onChange={(e) => setQ(+e.target.value)} /></label>
+          <p className="hint">HEIC decoding loads only when you convert, so the page stays light.</p>
+        </>}
+        {slug === "svg-to-png" && <>
+          <label>Width (px)<input type="number" min="16" max="4096" value={svgW} onChange={(e) => setSvgW(e.target.value)} /></label>
+          <p className="hint">Height follows the SVG's own ratio. Transparency is kept.</p>
+        </>}
+        {slug === "favicon-generator" && <>
+          <label>Background<input type="color" value={bgc} onChange={(e) => setBgc(e.target.value)} /></label>
+          <p className="hint">Exports 16 to 512 px PNGs plus favicon.ico in one ZIP.</p>
+        </>}
+        {slug === "circle-crop" && <>
+          <label>Size (px)<input type="number" min="32" max="4096" value={avatarSize} onChange={(e) => setAvatarSize(e.target.value)} /></label>
+          <p className="hint">Saves a square PNG with a transparent circular edge, centred on the photo.</p>
+        </>}
+        {slug === "watermark" && <>
+          <label>Text<input type="text" value={wmText} onChange={(e) => setWmText(e.target.value)} /></label>
+          <label>Position
+            <select value={wmPos} onChange={(e) => setWmPos(e.target.value)}>
+              <option value="bottom-right">Bottom right</option>
+              <option value="bottom-left">Bottom left</option>
+              <option value="top-right">Top right</option>
+              <option value="top-left">Top left</option>
+              <option value="center">Centre</option>
+            </select>
+          </label>
+          <label>Size: {wmSize}%<input type="range" min="2" max="20" value={wmSize} onChange={(e) => setWmSize(+e.target.value)} /></label>
+          <label>Opacity: {wmOpacity}%<input type="range" min="10" max="100" value={wmOpacity} onChange={(e) => setWmOpacity(+e.target.value)} /></label>
+          <label>Colour<input type="color" value={wmColor} onChange={(e) => setWmColor(e.target.value)} /></label>
+          {imgFmt()}
+        </>}
+        {slug === "image-to-base64" && <>
+          <label>Output
+            <select value={b64Mode} onChange={(e) => setB64Mode(e.target.value)}>
+              <option value="data">Data URI</option>
+              <option value="img">HTML img tag</option>
+              <option value="css">CSS background</option>
+            </select>
+          </label>
+          <p className="hint">Downloads a .txt with the encoded text. Handy for small icons and CSS.</p>
         </>}
         {slug === "pdf-to-image" && <>
           <label>Sharpness
@@ -168,12 +447,28 @@ export function Workbench({ slug }: { slug: string }) {
               <option value={1.5}>Standard</option><option value={2}>High</option><option value={3}>Very high</option>
             </select>
           </label>
-          {imgFmt}
+          {imgFmt()}
         </>}
         {slug === "image-to-pdf" && (
           <label className="check"><input type="checkbox" checked={scan} onChange={(e) => setScan(e.target.checked)} />Scanned look<small>Black and white with higher contrast, like a document scanner.</small></label>
         )}
         {slug === "pdf-grayscale" && <p className="hint">Each page is redrawn as a grayscale image, so text can no longer be selected or searched in the new file.</p>}
+        {slug === "pdf-merge" && <p className="hint">Files are joined in the order you pick them. Pick again to replace and reorder.</p>}
+        {slug === "pdf-split" && <>
+          <label>Pages<input type="text" value={range} onChange={(e) => setRange(e.target.value)} placeholder="1-3, 5" disabled={perPage} /></label>
+          <label className="check"><input type="checkbox" checked={perPage} onChange={(e) => setPerPage(e.target.checked)} />One file per page<small>Ignore the range and split every page into its own PDF.</small></label>
+        </>}
+        {slug === "pdf-rotate" && <>
+          <label>Turn
+            <select value={angle} onChange={(e) => setAngle(e.target.value)}>
+              <option value="90">90° clockwise</option>
+              <option value="180">180°</option>
+              <option value="270">270° clockwise</option>
+            </select>
+          </label>
+          <label>Pages<input type="text" value={range} onChange={(e) => setRange(e.target.value)} placeholder="all" /></label>
+          <p className="hint">Leave Pages empty to rotate every page.</p>
+        </>}
       </div>
 
       <button className="btn primary" disabled={!files.length || busy} onClick={run}>{busy ? status || "Working" : cfg.cta}</button>
