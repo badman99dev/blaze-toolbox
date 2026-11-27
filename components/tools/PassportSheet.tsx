@@ -56,6 +56,25 @@ const HELP = {
 } as const;
 type HelpKey = keyof typeof HELP;
 
+function HelpImage({ src, alt }: { src: string; alt: string }) {
+  const [state, setState] = useState<"loading" | "ok" | "err">("loading");
+  return (
+    <div className={s.helpFrame}>
+      {state === "loading" && <div className={s.spin} role="status" aria-label="Loading image" />}
+      {state === "err" && <p className={s.helpErr}>The image could not be loaded.</p>}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={(el) => { if (el && el.complete && el.naturalWidth > 0) setState("ok"); }}
+        className={s.helpImg + (state === "ok" ? " " + s.helpImgOn : "")}
+        src={src}
+        alt={alt}
+        onLoad={() => setState("ok")}
+        onError={() => setState("err")}
+      />
+    </div>
+  );
+}
+
 function HelpBtn({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button type="button" className={s.helpBtn} onClick={onClick} aria-label={`What is ${label}?`} aria-haspopup="dialog">i</button>
@@ -891,8 +910,7 @@ export function PassportSheet() {
         <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="htitle" onMouseDown={e => { if (e.target === e.currentTarget) setHelp(null); }}>
           <div className={s.modalBox + " " + s.helpBox}>
             <h2 id="htitle" className={s.h2}>{HELP[help].title}</h2>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className={s.helpImg} src={HELP[help].img} alt={HELP[help].alt} />
+            <HelpImage key={help} src={HELP[help].img} alt={HELP[help].alt} />
             <p className={s.muted}>{HELP[help].text}</p>
             <div className={s.actions}>
               <button type="button" className={s.btn + " " + s.btnSolid} autoFocus onClick={() => setHelp(null)}>Got it</button>
