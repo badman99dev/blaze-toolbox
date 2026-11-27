@@ -29,6 +29,10 @@ The site is a **plain, fluid website**. It must look right at any viewport width
 - If you add chrome above the tool, update the `9rem` offset in `passport.module.css` (two places) to match.
 - Print: `body.ps-printing` hides page chrome and prints only the A4 pages. Keep that working.
 
+## Help popups (passport tool)
+- The round `i` buttons beside Page margin, Set each side separately and Gap open a dialog with an image and a short text (`HELP` in `PassportSheet.tsx`).
+- Images are static SVGs in `public/help/` with a placeholder passport photo (unknown-person silhouette) and the explained part highlighted. Add a new help topic by adding an SVG there and an entry in `HELP`.
+
 ## Simple tool pages (Workbench)
 - `.wb` is an auto-fit grid: controls (`.wb-in`) and result (`.wb-out`) sit side by side when there is room and stack on phones. No breakpoint needed.
 - Keep it that way: new simple tools plug into `Workbench.tsx` and inherit this layout.

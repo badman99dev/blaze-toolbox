@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 530" width="480" height="530" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+<defs>
+  <symbol id="ph" viewBox="0 0 52 67">
+    <rect x=".4" y=".4" width="51.2" height="66.2" rx="1.5" fill="#d7e6f5" stroke="#8aa0b4" stroke-width=".8"/>
+    <circle cx="26.0" cy="25" r="10" fill="#8ea3b8"/>
+    <path d="M6 66.6 C6 50 16 42 26.0 42 C36 42 46 50 46 66.6 Z" fill="#8ea3b8"/>
+  </symbol>
+  <marker id="ar" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 Z" fill="#e8590c"/></marker>
+  
+</defs>
+<rect width="480" height="530" rx="14" fill="#f3f6f4"/>
+<rect x="93" y="54" width="300" height="424" fill="#0a1f14" opacity=".12"/>
+<rect x="90" y="50" width="300" height="424" fill="#fff" stroke="#b3beb7"/>
+<use href="#ph" x="114.00" y="74.00" width="52" height="67"/>
+<use href="#ph" x="180.67" y="74.00" width="52" height="67"/>
+<use href="#ph" x="247.33" y="74.00" width="52" height="67"/>
+<use href="#ph" x="314.00" y="74.00" width="52" height="67"/>
+<use href="#ph" x="114.00" y="155.67" width="52" height="67"/>
+<use href="#ph" x="180.67" y="155.67" width="52" height="67"/>
+<use href="#ph" x="247.33" y="155.67" width="52" height="67"/>
+<use href="#ph" x="314.00" y="155.67" width="52" height="67"/>
+<use href="#ph" x="114.00" y="237.33" width="52" height="67"/>
+<use href="#ph" x="180.67" y="237.33" width="52" height="67"/>
+<use href="#ph" x="247.33" y="237.33" width="52" height="67"/>
+<use href="#ph" x="314.00" y="237.33" width="52" height="67"/>
+<use href="#ph" x="114.00" y="319.00" width="52" height="67"/>
+<use href="#ph" x="180.67" y="319.00" width="52" height="67"/>
+<use href="#ph" x="247.33" y="319.00" width="52" height="67"/>
+<use href="#ph" x="314.00" y="319.00" width="52" height="67"/>
+<g fill="#e8590c" opacity=".55"><rect x="166.00" y="74.00" width="14.67" height="312.00"/><rect x="232.67" y="74.00" width="14.67" height="312.00"/><rect x="299.33" y="74.00" width="14.67" height="312.00"/><rect x="114.00" y="141.00" width="252.00" height="14.67"/><rect x="114.00" y="222.67" width="252.00" height="14.67"/><rect x="114.00" y="304.33" width="252.00" height="14.67"/></g>
+<line x1="398" y1="148.33" x2="360.0" y2="148.33" stroke="#e8590c" stroke-width="1.6"/><circle cx="360.0" cy="148.33" r="3.5" fill="#e8590c"/><rect x="398" y="135.33" width="72" height="26" rx="13" fill="#fff" stroke="#e8590c" stroke-width="1.5"/><text x="434.0" y="152.83" text-anchor="middle" font-size="13.5" font-weight="700" fill="#e8590c">Gap</text>
+</svg>

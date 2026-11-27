@@ -34,6 +34,35 @@ const ICON_OFF = (
 
 const cl = (v: string) => Math.max(0, parseFloat(v) || 0);
 
+const HELP = {
+  margin: {
+    title: "Page margin",
+    img: "/help/page-margin.svg",
+    alt: "A4 sheet with passport photos. The blank border around all photos is highlighted as the page margin.",
+    text: "The blank border between the paper edge and your photos, on all four sides. Raise it if your printer cuts off the edges. A margin of 0 fits the most photos on a sheet.",
+  },
+  sides: {
+    title: "Set each side separately",
+    img: "/help/separate-sides.svg",
+    alt: "A4 sheet with passport photos. The top, bottom, left and right margins are highlighted with different widths.",
+    text: "Give the top, bottom, left and right margins different values. Useful when your printer needs more room on one side, or when you want the photos moved away from one edge.",
+  },
+  gap: {
+    title: "Gap between photos",
+    img: "/help/photo-gap.svg",
+    alt: "A4 sheet with passport photos. The spaces between neighbouring photos are highlighted as the gap.",
+    text: "The space between neighbouring photos. A small gap leaves a white border around each photo, so it is easier to cut cleanly. A gap of 0 fits the most photos, but you must cut exactly on the line.",
+  },
+} as const;
+type HelpKey = keyof typeof HELP;
+
+function HelpBtn({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button type="button" className={s.helpBtn} onClick={onClick} aria-label={`What is ${label}?`} aria-haspopup="dialog">i</button>
+  );
+}
+
+
 /* ---------- layout ---------- */
 type Opts = { W: number; H: number; g: number; ML: number; MT: number; rotOK: boolean };
 
@@ -263,6 +292,13 @@ export function PassportSheet() {
   const [cropOpen, setCropOpen] = useState(false);
   const [zoomMul, setZoomMul] = useState(1);
   const [z, setZ] = useState(1);
+  const [help, setHelp] = useState<HelpKey | null>(null);
+  useEffect(() => {
+    if (!help) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setHelp(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [help]);
   const [over, setOver] = useState(false);
   const [busyPdf, setBusyPdf] = useState(false);
   const [toast, setToast] = useState<{ msg: string; bad: boolean } | null>(null);
@@ -782,7 +818,7 @@ export function PassportSheet() {
           <h2 className={s.h2} style={{ marginBottom: 4 }}>Sheet settings</h2>
           {!settings.adv && (
             <div>
-              <label className={s.lab} htmlFor="margin">Page margin (mm)</label>
+              <div className={s.labrow}><label className={s.lab} htmlFor="margin">Page margin (mm)</label><HelpBtn label="page margin" onClick={() => setHelp("margin")} /></div>
               <div className={s.step + " " + s.fill}>
                 <button className={s.btn} type="button" onClick={() => stepField("margin", -0.5, 0, 50)} aria-label="Decrease margin">−</button>
                 <input id="margin" type="number" value={settings.margin} step={0.5} min={0} max={50} onChange={e => updateSettings({ margin: e.target.value })} />
@@ -790,6 +826,7 @@ export function PassportSheet() {
               </div>
             </div>
           )}
+          <div className={s.checkrow}>
           <label className={s.check} style={{ marginTop: 12 }}>
             <input type="checkbox" checked={settings.adv} onChange={e => {
               if (e.target.checked) updateSettings({ adv: true, m_t: settings.margin, m_b: settings.margin, m_l: settings.margin, m_r: settings.margin });
@@ -797,6 +834,8 @@ export function PassportSheet() {
             }} />
             <span>Set each side separately<small>Top, bottom, left and right, one at a time.</small></span>
           </label>
+          <HelpBtn label="separate sides" onClick={() => setHelp("sides")} />
+          </div>
           {settings.adv && (
             <div className={s.two + " " + s.adv}>
               {sideFields.map(({ key, label }) => (
@@ -812,7 +851,7 @@ export function PassportSheet() {
             </div>
           )}
 
-          <label className={s.lab} htmlFor="gap">Gap between photos (mm)</label>
+          <div className={s.labrow}><label className={s.lab} htmlFor="gap">Gap between photos (mm)</label><HelpBtn label="the gap between photos" onClick={() => setHelp("gap")} /></div>
           <div className={s.step + " " + s.fill}>
             <button className={s.btn} type="button" onClick={() => stepField("gap", -0.5, 0, 30)} aria-label="Decrease gap">−</button>
             <input id="gap" type="number" value={settings.gap} step={0.5} min={0} max={30} onChange={e => updateSettings({ gap: e.target.value })} />
@@ -847,6 +886,20 @@ export function PassportSheet() {
           <button className={s.btn + " " + s.btnAccent + " " + s.dlbtn} disabled={!items.length || busyPdf} onClick={downloadPdf}>{busyPdf ? "Preparing PDF..." : "Download PDF"}</button>
         </div>
       </main>
+
+      {help && (
+        <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="htitle" onMouseDown={e => { if (e.target === e.currentTarget) setHelp(null); }}>
+          <div className={s.modalBox + " " + s.helpBox}>
+            <h2 id="htitle" className={s.h2}>{HELP[help].title}</h2>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className={s.helpImg} src={HELP[help].img} alt={HELP[help].alt} />
+            <p className={s.muted}>{HELP[help].text}</p>
+            <div className={s.actions}>
+              <button type="button" className={s.btn + " " + s.btnSolid} autoFocus onClick={() => setHelp(null)}>Got it</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <div className={s.toast + " " + s.toastOn + (toast.bad ? " " + s.toastBad : "")} role="status" aria-live="polite">{toast.msg}</div>}
 
