@@ -10,21 +10,20 @@ export function Mark() {
   );
 }
 
-export function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+  const wrap = wide ? "wrap wide" : "wrap";
   return (
-    <div className="mat">
-      <div className="sheetwrap">
-        <div className="rx" aria-hidden="true" />
-        <div className="ry" aria-hidden="true" />
-        <div className="sheet">
-          <header className="top">
-            <Link href="/" className="brand"><Mark />Blaze Toolbox</Link>
-            <nav aria-label="Main"><a href="/#tools">Tools</a><a href="/#privacy">Privacy</a></nav>
-          </header>
-          {children}
-          <footer className="foot">Blaze Toolbox. Your files are processed on your device and never uploaded.</footer>
+    <div className="site">
+      <header className="top">
+        <div className="wrap">
+          <Link href="/" className="brand"><Mark />Blaze Toolbox</Link>
+          <nav aria-label="Main"><a href="/#tools">Tools</a><a href="/#privacy">Privacy</a></nav>
         </div>
-      </div>
+      </header>
+      <main className={wrap}>{children}</main>
+      <footer className="foot">
+        <div className="wrap">Blaze Toolbox. Your files are processed on your device and never uploaded.</div>
+      </footer>
     </div>
   );
 }

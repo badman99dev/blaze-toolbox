@@ -24,7 +24,6 @@ export default function Home() {
             <span className="meta"><span>{t.meta}</span></span>
           </Link>
         ))}
-        <div className="cell slot" aria-hidden="true"><span>Room for more tools</span></div>
       </section>
 
       <section id="privacy" className="facts">

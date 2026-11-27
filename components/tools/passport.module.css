@@ -1,10 +1,9 @@
 .app {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
-  height: min(82vh, 900px);
-  min-height: 640px;
-  border: 1px solid var(--edge, #b3beb7);
-  border-radius: 2px;
+  grid-template-columns: clamp(19rem, 27vw, 24rem) minmax(0, 1fr);
+  height: clamp(40rem, 86dvh, 62rem);
+  border: 1px solid var(--line, #dde4df);
+  border-radius: .75rem;
   overflow: hidden;
   background: var(--paper, #fdfdfb);
 }
@@ -170,18 +169,7 @@
   min-height: 0;
   overflow: auto;
   padding: 24px;
-  background-color: var(--mat, #d3ddd6);
-  background-attachment: local;
-  background-image:
-    linear-gradient(90deg, var(--grid2) 1px, transparent 1px),
-    linear-gradient(var(--grid2) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px),
-    linear-gradient(var(--grid) 1px, transparent 1px);
-  background-size:
-    calc(50mm * var(--z, 1)) calc(50mm * var(--z, 1)),
-    calc(50mm * var(--z, 1)) calc(50mm * var(--z, 1)),
-    calc(10mm * var(--z, 1)) calc(10mm * var(--z, 1)),
-    calc(10mm * var(--z, 1)) calc(10mm * var(--z, 1));
+  background: var(--mat, #eef1ef);
 }
 
 .sheets { zoom: var(--z, 1); display: flex; flex-direction: column; gap: 12mm; width: max-content; margin: 0 auto; }
@@ -226,11 +214,11 @@
 .tools { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
 .tools .btn { min-height: 36px; padding: 0 12px; font-weight: 500; }
 
-@media (max-width: 860px) {
+@media (max-width: 62rem) {
   .app { display: block; height: auto; min-height: 0; }
   .panel { overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); padding: 18px 16px; }
-  .main { min-height: 70vh; }
-  .stage { padding: 16px 10px 90px; overflow-x: auto; }
+  .main { min-height: 70dvh; }
+  .stage { padding: 1rem .625rem 5.5rem; overflow-x: auto; }
   .bar { position: sticky; bottom: 0; z-index: 20; border-top: 1px solid var(--line); border-bottom: 0; flex-wrap: wrap; }
   .zoomg { display: none; }
 }
@@ -241,7 +229,7 @@
 }
 
 @media print {
-  .app { display: block !important; height: auto !important; min-height: 0 !important; border: 0 !important; overflow: visible !important; background: #fff !important; }
+  .app { display: block !important; height: auto !important; min-height: 0 !important; border: 0 !important; border-radius: 0 !important; overflow: visible !important; background: #fff !important; }
   .panel, .bar { display: none !important; }
   .main { display: block !important; background: #fff !important; }
   .stage { padding: 0 !important; overflow: visible !important; background: #fff !important; background-image: none !important; }

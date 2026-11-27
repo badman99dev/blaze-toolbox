@@ -22,7 +22,7 @@ export default async function ToolPage({ params }: Props) {
   const t = TOOLS.find((x) => x.slug === slug);
   if (!t) notFound();
   return (
-    <Shell>
+    <Shell wide={t.slug === "passport-photo"}>
       <section className="hero toolhero">
         <Icon slug={t.slug} />
         <h1>{t.name}</h1>
