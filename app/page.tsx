@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { Icon } from "@/components/Icon";
 import { LinkPending } from "@/components/LinkPending";
+import { ModeTag } from "@/components/ModeTag";
 import { TOOLS, CATEGORIES } from "@/lib/tools";
 
 export default function Home() {
@@ -29,6 +30,7 @@ export default function Home() {
               <div className="tools">
                 {items.map((t, i) => (
                   <Link key={t.slug} href={`/tools/${t.slug}`} prefetch={false} className={`cell t-${t.slug}`} style={{ "--i": i } as React.CSSProperties}>
+                    <ModeTag mode={t.mode} />
                     <Icon slug={t.slug} />
                     <h2>{t.name}</h2>
                     <p>{t.blurb}</p>

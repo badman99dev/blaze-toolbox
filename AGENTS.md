@@ -4,7 +4,7 @@ Guidance for AI agents and contributors working on **Blaze Toolbox**: on-device 
 Next.js 15 (App Router) + React 19 + TypeScript. No backend. Files never leave the user's device.
 
 ## Project map
-- `lib/tools.ts` — the list of tools (`slug`, `name`, `blurb`, `meta`, `cat`) and the `CATEGORIES`. Home grid and static routes come from this.
+- `lib/tools.ts` — the list of tools (`slug`, `name`, `blurb`, `meta`, `cat`, `mode`) and the `CATEGORIES`/`MODES`. Home grid and static routes come from this.
 - `app/page.tsx` — home. `app/tools/[slug]/page.tsx` — one static page per tool.
 - `components/Shell.tsx` — site frame: sticky header, `<main>`, footer. `wide` prop widens the container.
 - `components/tools/Workbench.tsx` — the simple tools (resize, compress, pdf-to-image, image-to-pdf, pdf-grayscale).
@@ -14,6 +14,7 @@ Next.js 15 (App Router) + React 19 + TypeScript. No backend. Files never leave t
 ## Home categories
 - Every tool in `lib/tools.ts` has a `cat`: `everyday` (normal users), `edit` (photo/image editing), or `dev` (developer/technical). `CATEGORIES` holds the section order, titles and descriptions.
 - The home page renders one `.tools` auto-fit grid per category with a `.tools-head` heading. Keep that order (everyday first, then editing, then developer). Adding a tool only needs a `cat` — no hard-coded lists. Same `.cell` markup, so the fluid rules below apply automatically.
+- Every tool also has a `mode`: `local`, `cloud`, or `hybrid`. `components/ModeTag.tsx` renders a small badge (icon + label) at the top-right of each card via `MODES`. **Every current tool is `local`** — nothing is uploaded and there is no server processing, so do not invent `cloud`/`hybrid` labels. If a real server-backed tool is added later, set its `mode` and the badge/icon already exist. Never relabel a local tool as cloud.
 
 ## Layout rules (important)
 The site is a **plain, fluid website**. It must look right at any viewport width and any browser zoom (25% to 500%).
