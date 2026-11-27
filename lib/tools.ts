@@ -17,4 +17,5 @@ export const TOOLS: Tool[] = [
   { slug: "pdf-merge", name: "Merge PDFs", blurb: "Join several PDFs into one file, in the order you choose.", meta: "Many files, one PDF" },
   { slug: "pdf-split", name: "Split PDF", blurb: "Pull out a page range or break a PDF into single pages.", meta: "By page range" },
   { slug: "pdf-rotate", name: "Rotate PDF", blurb: "Turn pages 90, 180 or 270 degrees and save a fixed copy.", meta: "90 / 180 / 270" },
+  { slug: "pdf-unlock", name: "Unlock PDF", blurb: "Remove a password or the printing and copying restrictions from a PDF you own.", meta: "Password or restrictions" },
 ];

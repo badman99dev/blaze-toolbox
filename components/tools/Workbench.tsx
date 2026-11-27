@@ -57,6 +57,47 @@ function parsePages(input: string, total: number) {
   });
   return [...set].sort((a, b) => a - b);
 }
+// qpdf compiled to WebAssembly handles real-world protected PDFs (xref streams,
+// AES-256, owner-only restrictions) and writes a genuinely unencrypted copy.
+// The 1.3 MB wasm is served from /qpdf/qpdf.wasm and only fetched on first use.
+type Qpdf = { FS: { writeFile: (p: string, d: Uint8Array) => void; readFile: (p: string) => Uint8Array; unlink: (p: string) => void }; callMain: (a: string[]) => number };
+let qpdfReady: Promise<Qpdf> | null = null;
+async function getQpdf(): Promise<Qpdf> {
+  if (!qpdfReady) {
+    qpdfReady = (async () => {
+      const mod: any = await import("@neslinesli93/qpdf-wasm");
+      const create = mod.default ?? mod;
+      return (await create({ locateFile: () => "/qpdf/qpdf.wasm" })) as Qpdf;
+    })().catch((e) => { qpdfReady = null; throw e; });
+  }
+  return qpdfReady;
+}
+async function unlockPdf(bytes: Uint8Array, password: string) {
+  const qpdf = await getQpdf();
+  const fs = qpdf.FS;
+  try { fs.unlink("in.pdf"); } catch { /* no previous file */ }
+  try { fs.unlink("out.pdf"); } catch { /* no previous file */ }
+  fs.writeFile("in.pdf", bytes);
+  const args = ["--decrypt"];
+  if (password) args.push(`--password=${password}`);
+  args.push("--", "in.pdf", "out.pdf");
+  await new Promise((r) => setTimeout(r, 0));
+  let code = 0;
+  try { code = qpdf.callMain(args); } catch (e: any) { code = e?.status ?? 1; }
+  let out: Uint8Array | null = null;
+  try { out = fs.readFile("out.pdf"); } catch { /* qpdf did not write one */ }
+  try { fs.unlink("in.pdf"); } catch { /* ignore */ }
+  try { fs.unlink("out.pdf"); } catch { /* ignore */ }
+  if (!out || !out.length) {
+    if (code === 2) {
+      throw new Error(password
+        ? "That password did not open this PDF. Check it and try again."
+        : "This PDF needs a password to open. Type the password above, then unlock.");
+    }
+    throw new Error("Could not unlock this PDF. It may be damaged or use an unsupported protection.");
+  }
+  return out;
+}
 function buildIco(images: { size: number; bytes: Uint8Array }[]) {
   const header = 6 + 16 * images.length;
   const total = header + images.reduce((s, i) => s + i.bytes.length, 0);
@@ -105,6 +146,7 @@ const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: s
   "pdf-merge": { accept: "application/pdf", multi: true, hint: "Pick PDFs in the order to join. Choose again to replace and reorder.", cta: "Merge" },
   "pdf-split": { accept: "application/pdf", multi: false, hint: "One PDF. Choose the pages to keep.", cta: "Split" },
   "pdf-rotate": { accept: "application/pdf", multi: false, hint: "One PDF.", cta: "Rotate" },
+  "pdf-unlock": { accept: "application/pdf", multi: false, hint: "One PDF. Enter its password if it asks for one.", cta: "Unlock" },
 };
 
 export function Workbench({ slug }: { slug: string }) {
@@ -131,6 +173,7 @@ export function Workbench({ slug }: { slug: string }) {
   const [perPage, setPerPage] = useState(false);
   const [angle, setAngle] = useState("90");
   const [b64Mode, setB64Mode] = useState("data");
+  const [pdfPw, setPdfPw] = useState("");
   const urls = useRef<string[]>([]);
 
   const keep = (blob: Blob) => { const u = URL.createObjectURL(blob); urls.current.push(u); return u; };
@@ -353,6 +396,12 @@ export function Workbench({ slug }: { slug: string }) {
         sel.forEach((n) => { const p = src.getPage(n - 1); p.setRotation(degrees((p.getRotation().angle + add) % 360)); });
         const blob = new Blob([(await src.save()) as unknown as BlobPart], { type: "application/pdf" });
         res.push({ name: `${base(files[0].name)}-rotated.pdf`, url: keep(blob), note: `${sel.length} page(s) turned ${add}°, ${kb(blob.size)}` });
+      } else if (slug === "pdf-unlock") {
+        setStatus("Removing protection");
+        const bytes = new Uint8Array(await files[0].arrayBuffer());
+        const out = await unlockPdf(bytes, pdfPw);
+        const blob = new Blob([out as unknown as BlobPart], { type: "application/pdf" });
+        res.push({ name: `${base(files[0].name)}-unlocked.pdf`, url: keep(blob), note: `Unlocked copy, ${kb(blob.size)}` });
       }
       setOut(res);
     } catch (e) {
@@ -468,6 +517,10 @@ export function Workbench({ slug }: { slug: string }) {
           </label>
           <label>Pages<input type="text" value={range} onChange={(e) => setRange(e.target.value)} placeholder="all" /></label>
           <p className="hint">Leave Pages empty to rotate every page.</p>
+        </>}
+        {slug === "pdf-unlock" && <>
+          <label>Password<input type="password" value={pdfPw} onChange={(e) => setPdfPw(e.target.value)} placeholder="Only if it asks for one" autoComplete="off" /></label>
+          <p className="hint">Use this for PDFs you own or are allowed to unlock. The file and password never leave your device. A PDF that cannot be opened without its password cannot be unlocked without it.</p>
         </>}
       </div>
 

@@ -15,6 +15,7 @@ const P: Record<string, React.ReactNode> = {
   "pdf-merge": <><rect x="4" y="6" width="11" height="20" rx="2" /><rect x="19" y="10" width="9" height="12" rx="2" /><path d="M15 16h4" /></>,
   "pdf-split": <><rect x="4" y="5" width="24" height="22" rx="2" /><path d="M16 5v22" strokeDasharray="2.5 2.5" /></>,
   "pdf-rotate": <><path d="M25 12a9 9 0 1 0-1.2 9" /><path d="M25 7v5h-5" /><rect x="11" y="11" width="10" height="12" rx="1.5" /></>,
+  "pdf-unlock": <><rect x="9" y="14" width="14" height="12" rx="2" /><path d="M12 14v-3a4 4 0 0 1 7.5-2" /><circle cx="16" cy="20" r="1.6" /></>,
 };
 export function Icon({ slug }: { slug: string }) {
   return (
