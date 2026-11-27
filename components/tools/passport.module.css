@@ -2,7 +2,7 @@
   /* app height follows the screen; the preview column is sized to the A4 page ratio
      (220 x 314 mm incl. label + ruler), and the controls panel takes all the rest */
   --app-h: clamp(26rem, calc(100dvh - 9rem), 200rem);
-  --bar-h: 3.5rem;
+  --bar-h: 7.75rem; /* top status/zoom bar + bottom download bar */
   --pad: 1.5rem;
   --main-w: max(28rem, calc((var(--app-h) - var(--bar-h) - 2 * var(--pad)) * 0.7006 + 2 * var(--pad)));
   display: grid;
@@ -162,6 +162,8 @@
 
 /* preview */
 .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; background: var(--paper); border-bottom: 1px solid var(--line); }
+.dl { flex: none; padding: 10px 14px; background: var(--paper); border-top: 1px solid var(--line); }
+.dlbtn { width: 100%; min-height: 2.75rem; }
 .status { flex: 1 1 6rem; min-width: 0; font-weight: 500; font-size: 14px; }
 .statusBad { color: var(--bad, #b3261e); }
 
@@ -224,8 +226,8 @@
   .app { display: block; height: auto; min-height: 0; }
   .panel { overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); padding: 18px 16px; }
   .main { height: var(--app-h); }
-  .stage { padding: 1rem .625rem 5.5rem; overflow-x: auto; }
-  .bar { position: sticky; bottom: 0; z-index: 20; border-top: 1px solid var(--line); border-bottom: 0; flex-wrap: wrap; }
+  .stage { padding: 1rem .625rem; overflow-x: auto; }
+  .dl { position: sticky; bottom: 0; z-index: 20; }
   .zoomg { display: none; }
 }
 
@@ -236,7 +238,7 @@
 
 @media print {
   .app { display: block !important; height: auto !important; min-height: 0 !important; border: 0 !important; border-radius: 0 !important; overflow: visible !important; background: #fff !important; }
-  .panel, .bar { display: none !important; }
+  .panel, .bar, .dl { display: none !important; }
   .main { display: block !important; background: #fff !important; }
   .stage { padding: 0 !important; overflow: visible !important; background: #fff !important; background-image: none !important; }
   .sheets { zoom: 1 !important; gap: 0 !important; display: block !important; width: auto !important; }

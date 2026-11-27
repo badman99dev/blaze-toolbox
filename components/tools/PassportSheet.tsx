@@ -529,13 +529,6 @@ export function PassportSheet() {
     }
   };
 
-  const doPrint = () => {
-    if (!items.length) { toastShow("Add at least one photo first.", true); return; }
-    document.body.classList.add("ps-printing");
-    window.addEventListener("afterprint", () => document.body.classList.remove("ps-printing"), { once: true });
-    setTimeout(() => { window.print(); document.body.classList.remove("ps-printing"); }, 30);
-  };
-
   const downloadPdf = async () => {
     if (!items.length) { toastShow("Add at least one photo first.", true); return; }
     if (sheet.kind !== "ok") { toastShow("These photos do not fit on an A4 sheet. Reduce the margin or choose a smaller size.", true); return; }
@@ -846,11 +839,12 @@ export function PassportSheet() {
             <button className={s.btn} onClick={() => setZoomMul(1)}>Fit</button>
             <button className={s.btn} onClick={() => setZoomMul(m => Math.min(2, m + 0.15))} aria-label="Zoom in">+</button>
           </div>
-          <button className={s.btn} onClick={doPrint}>Print</button>
-          <button className={s.btn + " " + s.btnAccent} disabled={!items.length || busyPdf} onClick={downloadPdf}>{busyPdf ? "Preparing PDF..." : "Download PDF"}</button>
         </div>
         <div className={s.stage} ref={stageRef} style={{ "--z": z } as CSSProperties}>
           <div className={s.sheets}>{pageNodes}</div>
+        </div>
+        <div className={s.dl} data-ps-hide>
+          <button className={s.btn + " " + s.btnAccent + " " + s.dlbtn} disabled={!items.length || busyPdf} onClick={downloadPdf}>{busyPdf ? "Preparing PDF..." : "Download PDF"}</button>
         </div>
       </main>
 
