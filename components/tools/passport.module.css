@@ -1,7 +1,7 @@
 .app {
   display: grid;
   grid-template-columns: clamp(19rem, 26vw, 32rem) minmax(0, 1fr);
-  height: clamp(40rem, calc(100dvh - 11rem), 200rem);
+  height: clamp(26rem, calc(100dvh - 9rem), 200rem); /* app fills the screen under the header + compact title */
   border: 1px solid var(--line, #dde4df);
   border-radius: .75rem;
   overflow: hidden;
@@ -217,7 +217,7 @@
 @media (max-width: 62rem) {
   .app { display: block; height: auto; min-height: 0; }
   .panel { overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); padding: 18px 16px; }
-  .main { min-height: 70dvh; }
+  .main { height: clamp(26rem, calc(100dvh - 9rem), 200rem); }
   .stage { padding: 1rem .625rem 5.5rem; overflow-x: auto; }
   .bar { position: sticky; bottom: 0; z-index: 20; border-top: 1px solid var(--line); border-bottom: 0; flex-wrap: wrap; }
   .zoomg { display: none; }

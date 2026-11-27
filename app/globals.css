@@ -74,6 +74,10 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .toolhero{padding:clamp(1.75rem,5vw,3.5rem) 0 clamp(1.25rem,3vw,2rem)}
 .toolhero h1{margin-top:1rem;font-size:clamp(1.875rem,1.2rem + 3vw,3.25rem);line-height:1.08;max-width:none;text-wrap:balance}
 .toolhero svg{color:var(--accent)}
+/* passport page: compact title so the whole tool fits in the first screen */
+.toolhero.compact{display:flex;align-items:center;gap:.75rem;padding:.75rem 0}
+.toolhero.compact h1{margin:0;font-size:clamp(1.25rem,1rem + 1.2vw,1.75rem)}
+.toolhero.compact .lede{display:none}
 .hint{margin-top:.625rem;font-size:var(--fs-small);color:var(--muted)}
 .wb{display:grid;gap:1.125rem;max-width:40rem;min-width:0}
 .drop{position:relative;display:flex;flex-direction:column;gap:.125rem;padding:1.5rem;border:1.5px dashed #92a299;border-radius:.75rem;background:var(--soft);cursor:pointer;overflow-wrap:anywhere}

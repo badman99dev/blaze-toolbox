@@ -360,8 +360,13 @@ export function PassportSheet() {
     if (!stage) return;
     const calc = () => {
       const cs = getComputedStyle(stage);
-      const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-      const fit = Math.min(1.6, (stage.clientWidth - pad) / (220 * MM));
+      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      // Fit one whole A4 sheet (page + label + ruler) inside the visible stage,
+      // by width AND by height, so nothing needs scrolling by default.
+      const byW = (stage.clientWidth - padX) / (220 * MM);
+      const byH = (stage.clientHeight - padY) / (314 * MM);
+      const fit = Math.min(1.6, byW, byH);
       setZ(Math.max(0.2, fit * zoomMul));
     };
     calc();

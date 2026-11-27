@@ -23,7 +23,7 @@ export default async function ToolPage({ params }: Props) {
   if (!t) notFound();
   return (
     <Shell wide={t.slug === "passport-photo"}>
-      <section className="hero toolhero">
+      <section className={`hero toolhero${t.slug === "passport-photo" ? " compact" : ""}`}>
         <Icon slug={t.slug} />
         <h1>{t.name}</h1>
         <p className="lede">{t.blurb}</p>
