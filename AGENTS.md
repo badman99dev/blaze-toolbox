@@ -7,7 +7,8 @@ Next.js 15 (App Router) + React 19 + TypeScript. No backend. Files never leave t
 - `lib/tools.ts` — the list of tools (`slug`, `name`, `blurb`, `meta`, `cat`, `mode`) and the `CATEGORIES`/`MODES`. Home grid and static routes come from this.
 - `app/page.tsx` — home. `app/tools/[slug]/page.tsx` — one static page per tool. `app/privacy/page.tsx` — the privacy page (static, long-form `.prose`), linked from the header nav and footer.
 - `components/Shell.tsx` — site frame: sticky header, `<main>`, footer. `wide` prop widens the container.
-- `components/tools/Workbench.tsx` — the simple tools (resize, compress, pdf-to-image, image-to-pdf, pdf-grayscale).
+- `components/tools/Workbench.tsx` — the simple tools (compress, image convert, HEIC to JPG, SVG to PNG, favicon pack, circle crop, watermark, Base64, PDF to image, image to PDF, PDF grayscale, PDF merge/split/rotate/unlock/lock).
+- `components/tools/ImageResize.tsx` — the image resize tool: cropperjs crop stage (free + fixed ratios, rotate/zoom/reset) with optional width/height typing and a format/quality output. Rendered for `image-resize` in `app/tools/[slug]/page.tsx`; it is no longer in `Workbench`.
 - `components/tools/PassportSheet.tsx` + `passport.module.css` — the passport photo sheet (crop, MaxRects packing, PDF).
 - `app/globals.css` — global design tokens and layout.
 
@@ -41,7 +42,8 @@ The site is a **plain, fluid website**. It must look right at any viewport width
 ## Simple tool pages (Workbench)
 - `.wb` is an auto-fit grid: controls (`.wb-in`) and result (`.wb-out`) sit side by side when there is room and stack on phones. No breakpoint needed.
 - Keep it that way: new simple tools plug into `Workbench.tsx` and inherit this layout.
-- Tools handled here: resize, compress, image convert, HEIC to JPG, SVG to PNG, favicon pack, circle crop, watermark, image to Base64, PDF to image, image to PDF, PDF grayscale, PDF merge, PDF split, PDF rotate, PDF unlock, PDF lock.
+- Tools handled here: compress, image convert, HEIC to JPG, SVG to PNG, favicon pack, circle crop, watermark, image to Base64, PDF to image, image to PDF, PDF grayscale, PDF merge, PDF split, PDF rotate, PDF unlock, PDF lock.
+- Image resize is its own component (`ImageResize.tsx`, cropperjs); see the project map. Keep typing the output size optional — leaving width and height empty keeps the cropped pixels.
 - New controls live in the `.opts` auto-fit grid (`label` with input/select/range/checkbox) so they reflow and keep `2.75rem` touch targets. Text, password and colour inputs are styled globally.
 - Unlock PDF uses **qpdf compiled to WebAssembly** (`@neslinesli93/qpdf-wasm`), loaded lazily only inside that branch. The 1.3 MB `qpdf.wasm` is committed at `public/qpdf/qpdf.wasm` and located via `locateFile: () => "/qpdf/qpdf.wasm"`. It runs `qpdf --decrypt [--password=…] -- in.pdf out.pdf` in the wasm FS and returns the plain bytes. This is what reliably handles real-world protected PDFs (xref streams, AES-256, owner-only restrictions) — plain `pdf-lib` / `@cantoo/pdf-lib` leave modern files encrypted on save, so don't switch back. It removes owner/permission restrictions (empty user password) and removes a user password only when the user supplies it. **Lock PDF** uses the same wasm: `qpdf --encrypt <password> <password> 256 [--print=none] [--extract=n] -- in.pdf out.pdf` (AES-256; user and owner password are the same). Never claim to crack an unknown password — a PDF no reader can open without the password cannot be unlocked without it.
 

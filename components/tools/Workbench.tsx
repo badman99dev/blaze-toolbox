@@ -149,7 +149,6 @@ async function renderPage(doc: Awaited<ReturnType<typeof openPdf>>, n: number, s
 }
 
 const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: string }> = {
-  "image-resize": { accept: "image/*", multi: true, hint: "JPG, PNG or WebP. You can pick several.", cta: "Resize" },
   "image-compress": { accept: "image/*", multi: true, hint: "JPG, PNG or WebP. You can pick several.", cta: "Compress" },
   "image-convert": { accept: "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp", multi: true, hint: "Pick images to convert. You can choose several.", cta: "Convert" },
   "heic-to-jpg": { accept: ".heic,.heif,image/heic,image/heif", multi: true, hint: "iPhone HEIC or HEIF photos. You can pick several.", cta: "Convert" },
@@ -175,7 +174,6 @@ export function Workbench({ slug }: { slug: string }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [err, setErr] = useState("");
-  const [w, setW] = useState(""); const [h, setH] = useState("");
   const [fmt, setFmt] = useState(slug === "image-compress" || slug === "heic-to-jpg" || slug === "watermark" ? "image/jpeg" : slug === "image-convert" ? "image/webp" : "image/png");
   const [q, setQ] = useState(70);
   const [scale, setScale] = useState(2);
@@ -204,24 +202,14 @@ export function Workbench({ slug }: { slug: string }) {
     setOut([]); setErr(""); setBusy(true);
     try {
       const res: Out[] = [];
-      if (slug === "image-resize" || slug === "image-compress") {
+      if (slug === "image-compress") {
         for (const f of files) {
           setStatus(`Working on ${f.name}`);
           const b = await createImageBitmap(f);
-          let tw = b.width, th = b.height;
-          if (slug === "image-resize") {
-            const pw = parseInt(w), ph = parseInt(h);
-            if (!pw && !ph) throw new Error("Enter a width, a height, or both.");
-            if (pw && ph) { tw = pw; th = ph; }
-            else if (pw) { tw = pw; th = Math.round((b.height * pw) / b.width); }
-            else { th = ph; tw = Math.round((b.width * ph) / b.height); }
-          }
-          const type = fmt === "image/png" && slug === "image-compress" ? "image/jpeg" : fmt;
-          const blob = await toBlob(draw(b, tw, th), type, slug === "image-compress" ? q / 100 : 0.92);
-          const note = slug === "image-compress"
-            ? `${kb(f.size)} to ${kb(blob.size)} (${blob.size < f.size ? "-" : "+"}${Math.abs(Math.round((1 - blob.size / f.size) * 100))}%)`
-            : `${tw} × ${th} px, ${kb(blob.size)}`;
-          res.push({ name: `${base(f.name)}-${slug === "image-resize" ? `${tw}x${th}` : "compressed"}.${EXT[type]}`, url: keep(blob), note });
+          const type = fmt === "image/png" ? "image/jpeg" : fmt;
+          const blob = await toBlob(draw(b, b.width, b.height), type, q / 100);
+          const note = `${kb(f.size)} to ${kb(blob.size)} (${blob.size < f.size ? "-" : "+"}${Math.abs(Math.round((1 - blob.size / f.size) * 100))}%)`;
+          res.push({ name: `${base(f.name)}-compressed.${EXT[type]}`, url: keep(blob), note });
         }
       } else if (slug === "image-convert") {
         for (const f of files) {
@@ -459,12 +447,6 @@ export function Workbench({ slug }: { slug: string }) {
       </label>
 
       <div className="opts">
-        {slug === "image-resize" && <>
-          <label>Width (px)<input type="number" min="1" value={w} onChange={(e) => setW(e.target.value)} /></label>
-          <label>Height (px)<input type="number" min="1" value={h} onChange={(e) => setH(e.target.value)} /></label>
-          {imgFmt()}
-          <p className="hint">Fill one side to keep the aspect ratio. Fill both for an exact size.</p>
-        </>}
         {slug === "image-compress" && <>
           <label>Quality: {q}<input type="range" min="10" max="95" value={q} onChange={(e) => setQ(+e.target.value)} /></label>
           {imgFmt()}

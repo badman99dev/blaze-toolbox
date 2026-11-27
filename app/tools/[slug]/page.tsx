@@ -7,6 +7,7 @@ import { Shell } from "@/components/Shell";
 import { Icon } from "@/components/Icon";
 const Workbench = dynamic(() => import("@/components/tools/Workbench").then((m) => m.Workbench));
 const PassportSheet = dynamic(() => import("@/components/tools/PassportSheet").then((m) => m.PassportSheet));
+const ImageResize = dynamic(() => import("@/components/tools/ImageResize").then((m) => m.ImageResize));
 import { TOOLS } from "@/lib/tools";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -30,7 +31,7 @@ export default async function ToolPage({ params }: Props) {
         <h1>{t.name}</h1>
         <p className="lede">{t.blurb}</p>
       </section>
-      {t.slug === "passport-photo" ? <PassportSheet /> : <Workbench slug={t.slug} />}
+      {t.slug === "passport-photo" ? <PassportSheet /> : t.slug === "image-resize" ? <ImageResize /> : <Workbench slug={t.slug} />}
       <div className="cta"><Link className="btn" href="/" prefetch={false}>All tools<LinkPending variant="inline" /></Link></div>
     </Shell>
   );

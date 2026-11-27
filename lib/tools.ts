@@ -29,7 +29,7 @@ export const CATEGORIES: { id: Category; title: string; desc: string }[] = [
 export const TOOLS: Tool[] = [
   { slug: "passport-photo", cat: "everyday", mode: "local", name: "Passport photo sheet", blurb: "Crop once, then fill an A4 page with tightly spaced copies. Download a print-ready PDF.", meta: "A4 sheet, 35 × 45 mm and more" },
   { slug: "image-compress", cat: "everyday", mode: "local", name: "Image compress", blurb: "Shrink file size and compare before and after.", meta: "Quality slider" },
-  { slug: "image-resize", cat: "everyday", mode: "local", name: "Image resize", blurb: "Set exact pixels or a percentage, and keep the aspect ratio.", meta: "JPG, PNG, WebP" },
+  { slug: "image-resize", cat: "everyday", mode: "local", name: "Image resize", blurb: "Crop the photo by hand, then resize to exact pixels — or leave the size empty to keep the crop.", meta: "Crop + exact pixels" },
   { slug: "heic-to-jpg", cat: "everyday", mode: "local", name: "HEIC to JPG", blurb: "Turn iPhone HEIC photos into JPG, PNG or WebP files that open everywhere.", meta: "HEIC, HEIF" },
   { slug: "image-to-pdf", cat: "everyday", mode: "local", name: "Image to PDF, scanned look", blurb: "Combine photos into one PDF with the flat, high-contrast look of a scanner.", meta: "Many images, one file" },
   { slug: "pdf-to-image", cat: "everyday", mode: "local", name: "PDF to image", blurb: "Turn each page into a sharp PNG or JPG.", meta: "PNG, JPG" },
