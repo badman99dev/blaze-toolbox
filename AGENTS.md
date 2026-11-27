@@ -43,7 +43,7 @@ The site is a **plain, fluid website**. It must look right at any viewport width
 - Tool-only CSS and libraries (e.g. `cropperjs` and its CSS) are imported inside that tool's component, never in `layout.tsx`.
 - Heavy libs used on a button press (`pdf-lib`, `pdfjs-dist`) stay behind `await import(...)`.
 
-- Loading UI: `app/loading.tsx` (route changes) and a `<Suspense fallback={<Loader/>}>` around tool components, using `components/Loader.tsx` (top bar + document sheet with photos popping in and a scan line). Keep it CSS-only and respect `prefers-reduced-motion`.
+- Loading UI: there is no `loading.tsx`, so the current page stays on screen while the next one loads. Put `<LinkPending variant="card|inline|bar" />` (uses `useLinkStatus`) inside a `<Link>` to show the indicator (top bar + document/photo animation) right where the user clicked. Keep it CSS-only and respect `prefers-reduced-motion`.
 
 ## Adding a tool
 1. Add an entry to `TOOLS` in `lib/tools.ts` and an icon in `components/Icon.tsx`.

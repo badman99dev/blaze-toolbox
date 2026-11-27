@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkPending } from "@/components/LinkPending";
 
 export function Mark() {
   return (
@@ -16,8 +17,8 @@ export function Shell({ children, wide = false }: { children: React.ReactNode; w
     <div className="site">
       <header className="top">
         <div className={wrap}>
-          <Link href="/" prefetch={false} className="brand"><Mark />Blaze Toolbox</Link>
-          <nav aria-label="Main"><Link href="/#tools" prefetch={false}>Tools</Link><Link href="/#privacy" prefetch={false}>Privacy</Link></nav>
+          <Link href="/" prefetch={false} className="brand"><Mark />Blaze Toolbox<LinkPending /></Link>
+          <nav aria-label="Main"><Link href="/#tools" prefetch={false}>Tools<LinkPending /></Link><Link href="/#privacy" prefetch={false}>Privacy<LinkPending /></Link></nav>
         </div>
       </header>
       <main className={wrap}>{children}</main>

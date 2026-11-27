@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { Icon } from "@/components/Icon";
+import { LinkPending } from "@/components/LinkPending";
 import { TOOLS } from "@/lib/tools";
 
 export default function Home() {
@@ -10,7 +11,7 @@ export default function Home() {
         <h1>Everyday file jobs, done on your own device.</h1>
         <p className="lede">Resize and compress photos, build passport sheets, and convert PDFs. Nothing is uploaded, so your documents never leave your phone or laptop.</p>
         <div className="cta">
-          <Link className="btn primary" href="/tools/passport-photo" prefetch={false}>Make a passport sheet</Link>
+          <Link className="btn primary" href="/tools/passport-photo" prefetch={false}>Make a passport sheet<LinkPending variant="inline" /></Link>
           <a className="btn" href="#tools">Browse tools</a>
         </div>
       </section>
@@ -22,6 +23,7 @@ export default function Home() {
             <h2>{t.name}</h2>
             <p>{t.blurb}</p>
             <span className="meta"><span>{t.meta}</span></span>
+            <LinkPending variant="card" />
           </Link>
         ))}
       </section>
