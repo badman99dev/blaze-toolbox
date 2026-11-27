@@ -48,6 +48,7 @@ export default function Home() {
         <p><strong>Runs in your browser.</strong> Every tool works with the files already on your device.</p>
         <p><strong>No account.</strong> Open a tool, drop a file, download the result.</p>
         <p><strong>No watermarks.</strong> Results are clean files you can print, send or upload anywhere.</p>
+        <p><strong>How we handle your data.</strong> No uploads, no trackers, no cookies. <Link href="/privacy" prefetch={false}>Read the full privacy note<LinkPending variant="inline" /></Link>.</p>
       </section>
     </Shell>
   );

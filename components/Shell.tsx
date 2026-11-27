@@ -18,12 +18,15 @@ export function Shell({ children, wide = false }: { children: React.ReactNode; w
       <header className="top">
         <div className={wrap}>
           <Link href="/" prefetch={false} className="brand"><Mark />Blaze Toolbox<LinkPending /></Link>
-          <nav aria-label="Main"><Link href="/#tools" prefetch={false}>Tools<LinkPending /></Link><Link href="/#privacy" prefetch={false}>Privacy<LinkPending /></Link></nav>
+          <nav aria-label="Main"><Link href="/#tools" prefetch={false}>Tools<LinkPending /></Link><Link href="/privacy" prefetch={false}>Privacy<LinkPending /></Link></nav>
         </div>
       </header>
       <main className={wrap}>{children}</main>
       <footer className="foot">
-        <div className={wrap}>Blaze Toolbox. Your files are processed on your device and never uploaded.</div>
+        <div className={wrap}>
+          <span>Blaze Toolbox. Your files are processed on your device and never uploaded.</span>
+          <Link className="footlink" href="/privacy" prefetch={false}>Privacy<LinkPending variant="inline" /></Link>
+        </div>
       </footer>
     </div>
   );

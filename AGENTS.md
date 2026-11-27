@@ -5,7 +5,7 @@ Next.js 15 (App Router) + React 19 + TypeScript. No backend. Files never leave t
 
 ## Project map
 - `lib/tools.ts` — the list of tools (`slug`, `name`, `blurb`, `meta`, `cat`, `mode`) and the `CATEGORIES`/`MODES`. Home grid and static routes come from this.
-- `app/page.tsx` — home. `app/tools/[slug]/page.tsx` — one static page per tool.
+- `app/page.tsx` — home. `app/tools/[slug]/page.tsx` — one static page per tool. `app/privacy/page.tsx` — the privacy page (static, long-form `.prose`), linked from the header nav and footer.
 - `components/Shell.tsx` — site frame: sticky header, `<main>`, footer. `wide` prop widens the container.
 - `components/tools/Workbench.tsx` — the simple tools (resize, compress, pdf-to-image, image-to-pdf, pdf-grayscale).
 - `components/tools/PassportSheet.tsx` + `passport.module.css` — the passport photo sheet (crop, MaxRects packing, PDF).

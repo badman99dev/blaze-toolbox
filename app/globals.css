@@ -37,7 +37,25 @@ a{color:inherit}
 .top nav a:hover{color:var(--ink)}
 
 .foot{margin-top:clamp(3rem,8vw,6rem);border-top:1px solid var(--line);background:var(--soft);font-size:.8125rem;color:var(--muted)}
-.foot .wrap{padding-block:1.5rem}
+.foot .wrap{padding-block:1.5rem;display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;justify-content:space-between;align-items:baseline}
+.footlink{color:var(--muted);font-weight:600;text-decoration:none}
+.footlink:hover{color:var(--ink)}
+
+/* ---------- prose: readable long-form pages (privacy) ---------- */
+.prose{max-width:62ch;margin-top:clamp(1.5rem,4vw,2.5rem)}
+.prose section{margin-top:clamp(1.75rem,4vw,2.75rem)}
+.prose section:first-child{margin-top:0}
+.prose h2{font-size:clamp(1.25rem,1.05rem + .8vw,1.625rem);font-weight:650;letter-spacing:-.015em;line-height:1.15;padding-bottom:.5rem;margin-bottom:.875rem;border-bottom:1px solid var(--line);text-wrap:balance}
+.prose p{color:var(--muted);margin:0 0 .875rem}
+.prose p:last-child{margin-bottom:0}
+.prose strong{color:var(--ink)}
+.prose ul{margin:0 0 .875rem;padding-left:1.25rem;color:var(--muted);display:grid;gap:.4rem}
+.prose li{max-width:60ch}
+.prose .grid-list{list-style:none;padding:0;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:.4rem 1.5rem}
+.prose .grid-list li{position:relative;padding-left:1.05rem}
+.prose .grid-list li::before{content:"";position:absolute;left:0;top:.62em;width:.4rem;height:.4rem;border-radius:50%;background:var(--accent)}
+.prose a{color:var(--accent);font-weight:600;text-decoration:none}
+.prose a:hover{text-decoration:underline}
 
 /* ---------- hero + buttons ---------- */
 .hero{padding:clamp(2.5rem,8vw,6rem) 0 clamp(2rem,5vw,4rem)}
