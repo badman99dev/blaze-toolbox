@@ -1,7 +1,13 @@
 .app {
+  /* app height follows the screen; the preview column is sized to the A4 page ratio
+     (220 x 314 mm incl. label + ruler), and the controls panel takes all the rest */
+  --app-h: clamp(26rem, calc(100dvh - 9rem), 200rem);
+  --bar-h: 3.5rem;
+  --pad: 1.5rem;
+  --main-w: max(28rem, calc((var(--app-h) - var(--bar-h) - 2 * var(--pad)) * 0.7006 + 2 * var(--pad)));
   display: grid;
-  grid-template-columns: clamp(19rem, 26vw, 32rem) minmax(0, 1fr);
-  height: clamp(26rem, calc(100dvh - 9rem), 200rem); /* app fills the screen under the header + compact title */
+  grid-template-columns: minmax(19rem, 1fr) minmax(0, min(var(--main-w), 100% - 19rem));
+  height: var(--app-h);
   border: 1px solid var(--line, #dde4df);
   border-radius: .75rem;
   overflow: hidden;
@@ -57,7 +63,7 @@
   color: inherit;
 }
 
-.sizes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-width: 0; }
+.sizes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: 8px; min-width: 0; }
 
 .chip { position: relative; display: block; min-width: 0; }
 .chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
@@ -155,8 +161,8 @@
 .pend img { width: 44px; height: 56px; object-fit: cover; border-radius: 2px; outline: 1px solid var(--line); flex: none; }
 
 /* preview */
-.bar { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--paper); border-bottom: 1px solid var(--line); }
-.status { flex: 1; min-width: 0; font-weight: 500; font-size: 14px; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; background: var(--paper); border-bottom: 1px solid var(--line); }
+.status { flex: 1 1 6rem; min-width: 0; font-weight: 500; font-size: 14px; }
 .statusBad { color: var(--bad, #b3261e); }
 
 .zoomg { display: flex; }
@@ -168,7 +174,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 24px;
+  padding: var(--pad, 1.5rem);
   background: var(--mat, #eef1ef);
 }
 
@@ -217,7 +223,7 @@
 @media (max-width: 62rem) {
   .app { display: block; height: auto; min-height: 0; }
   .panel { overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); padding: 18px 16px; }
-  .main { height: clamp(26rem, calc(100dvh - 9rem), 200rem); }
+  .main { height: var(--app-h); }
   .stage { padding: 1rem .625rem 5.5rem; overflow-x: auto; }
   .bar { position: sticky; bottom: 0; z-index: 20; border-top: 1px solid var(--line); border-bottom: 0; flex-wrap: wrap; }
   .zoomg { display: none; }

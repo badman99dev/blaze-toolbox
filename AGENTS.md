@@ -23,7 +23,7 @@ The site is a **plain, fluid website**. It must look right at any viewport width
 - Touch targets are at least `2.75rem` high. Respect `prefers-reduced-motion`.
 
 ## Passport tool: preview must fit the screen
-- The tool (`.app`) is sized to the screen: `height: clamp(26rem, calc(100dvh - 9rem), 200rem)`. The title is compact on this page.
+- The tool (`.app`) is sized to the screen: `--app-h: clamp(26rem, calc(100dvh - 9rem), 200rem)`. The preview column is sized to the A4 page ratio (`--main-w`); the controls panel takes all the remaining width. The title is compact on this page.
 - The A4 preview auto-fits **by width and by height** (see the `calc` effect in `PassportSheet.tsx`), so one whole sheet is visible with no scrolling by default.
   `Fit` resets to this; `+` / `-` zoom from there.
 - If you add chrome above the tool, update the `9rem` offset in `passport.module.css` (two places) to match.
