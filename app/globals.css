@@ -122,6 +122,8 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .pend-card{position:absolute;inset:0;z-index:2;display:grid;place-content:center;justify-items:center;gap:.25rem;border-radius:inherit;background:rgb(255 255 255 / .86);color:var(--muted);font-size:var(--fs-small);font-weight:600;animation:ldshow .2s linear .12s backwards}
 .pend-card svg{width:5rem;height:5rem}
 .pend-spin{width:1.125rem;height:1.125rem;margin-left:.625rem;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:ldspin .7s linear infinite}
+.pend-reload{position:relative;z-index:3;margin-top:.25rem;font:600 var(--fs-small) var(--font-body),sans-serif;color:var(--accent);background:#fff;border:1px solid var(--edge);border-radius:var(--r);padding:.375rem .875rem;min-height:2.75rem;cursor:pointer}
+.pend-reload:hover,.pend-reload:focus-visible{border-color:var(--accent)}
 @keyframes ldspin{to{transform:rotate(360deg)}}
 .btn .topbar,.brand .topbar,.top nav .topbar{position:fixed}
 .topbar{position:fixed;inset:0 0 auto 0;height:3px;z-index:60;overflow:hidden;pointer-events:none}

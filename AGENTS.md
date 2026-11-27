@@ -46,6 +46,7 @@ The site is a **plain, fluid website**. It must look right at any viewport width
 - Heavy libs used on a button press (`pdf-lib`, `pdfjs-dist`) stay behind `await import(...)`.
 
 - Loading UI: there is no `loading.tsx`, so the current page stays on screen while the next one loads. Put `<LinkPending variant="card|inline|bar" />` (uses `useLinkStatus`) inside a `<Link>` to show the indicator (top bar + document/photo animation) right where the user clicked. Keep it CSS-only and respect `prefers-reduced-motion`.
+- Never spin forever: after a new deploy an open tab can point at old hashed chunks. `components/ChunkGuard.tsx` (mounted in `layout.tsx`) reloads once on a chunk-load error, and `LinkPending` swaps "Opening..." for a Reload button after 8s, then auto-reloads. `app/error.tsx` + `app/global-error.tsx` give a reload path too. Keep these.
 
 ## Adding a tool
 1. Add an entry to `TOOLS` in `lib/tools.ts` and an icon in `components/Icon.tsx`.
