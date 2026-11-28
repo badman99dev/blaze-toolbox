@@ -41,6 +41,58 @@ function captureFrame(src: string): Promise<HTMLIFrameElement> {
   });
 }
 
+type Run = { text: string; x: number; top: number; size: number; style: "normal" | "bold" | "italic" | "bolditalic" };
+
+// Walk the rendered document and collect every line of text with its position and
+// size. These lines are re-drawn into the PDF in invisible mode on top of the
+// picture, so the file looks exactly the same but its words can be selected,
+// searched and copied — a "searchable PDF", the same idea as an OCR'd scan. The
+// built-in PDF fonts only hold Latin-1, so characters outside that range are left
+// out of the text layer (the picture still shows them).
+function collectRuns(root: HTMLElement, originX: number, originY: number): Run[] {
+  const win = root.ownerDocument.defaultView;
+  if (!win) return [];
+  const runs: Run[] = [];
+  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.textContent || "";
+    if (!text.trim()) continue;
+    const el = node.parentElement;
+    if (!el) continue;
+    const tag = el.tagName;
+    if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT") continue;
+    const cs = win.getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden" || cs.visibility === "collapse" || parseFloat(cs.opacity) === 0) continue;
+    const size = parseFloat(cs.fontSize) || 16;
+    const bold = (parseInt(cs.fontWeight, 10) || 400) >= 600;
+    const italic = cs.fontStyle === "italic" || cs.fontStyle === "oblique";
+    const style: Run["style"] = bold && italic ? "bolditalic" : bold ? "bold" : italic ? "italic" : "normal";
+    const range = root.ownerDocument.createRange();
+    const lines = new Map<number, { text: string; x: number; top: number }>();
+    let off = 0;
+    for (const part of text.split(/(\s+)/)) {
+      if (part.trim()) {
+        range.setStart(node, off);
+        range.setEnd(node, off + part.length);
+        const r = range.getBoundingClientRect();
+        if (r.height > 0) {
+          const key = Math.round((r.top - originY) / 2);
+          const x = r.left - originX, top = r.top - originY;
+          const cur = lines.get(key);
+          if (cur) { cur.text += " " + part; cur.x = Math.min(cur.x, x); cur.top = Math.min(cur.top, top); }
+          else lines.set(key, { text: part, x, top });
+        }
+      }
+      off += part.length;
+    }
+    for (const ln of lines.values()) {
+      const safe = ln.text.replace(/[\u0100-\uFFFF]/g, " ").replace(/\s+/g, " ").trim();
+      if (safe) runs.push({ text: safe, x: ln.x, top: ln.top, size, style });
+    }
+  }
+  return runs;
+}
+
 const EXAMPLE_HTML = `<h1>Invoice</h1>
 <p class="muted">Blaze Toolbox — 28 November 2026</p>
 <table>
@@ -99,6 +151,8 @@ export function HtmlToPdf() {
       setStatus("Rendering the page");
       const f = await captureFrame(buildDoc(html, css, size, orient, margin, true));
       let canvas: HTMLCanvasElement;
+      let runs: Run[] = [];
+      let bodyW = 1;
       try {
         const html2canvas = (await loadLib("html2canvas", "PDF renderer (html2canvas)", () => import("html2canvas-pro"))).default;
         const body = f.contentDocument!.body;
@@ -107,11 +161,22 @@ export function HtmlToPdf() {
         f.style.width = Math.round(usableW * PX_PER_PT) + "px";
         f.style.height = Math.max(200, h) + "px";
         await nextFrame();
+        const bodyRect = body.getBoundingClientRect();
+        bodyW = body.scrollWidth || body.clientWidth || 1;
+        runs = collectRuns(body, bodyRect.left, bodyRect.top);
         canvas = await html2canvas(body, { backgroundColor: "#ffffff", scale: 2, useCORS: true, logging: false, width: body.scrollWidth, height: body.scrollHeight, windowWidth: body.scrollWidth });
       } finally { f.remove(); }
       setStatus("Writing the PDF");
       const ratio = usableW / canvas.width;
       const pages = Math.max(1, Math.ceil((canvas.height * ratio) / usableH - 1e-6));
+      // DOM px -> PDF pt for the text layer (the body width maps onto the usable width).
+      const domToPt = usableW / bodyW;
+      const baselineOf = (r: Run) => (r.top + r.size * 0.8) * domToPt;
+      const runsByPage: Run[][] = Array.from({ length: pages }, () => []);
+      for (const r of runs) {
+        const pg = Math.min(pages - 1, Math.max(0, Math.floor(baselineOf(r) / usableH)));
+        runsByPage[pg].push(r);
+      }
       const { jsPDF } = await loadLib("jspdf", "PDF writer (jsPDF)", () => import("jspdf"));
       const pdf = new jsPDF({ unit: "pt", format: [pageW, pageH], orientation: orient === "landscape" ? "landscape" : "portrait", compress: true });
       const sliceHpx = usableH / ratio;
@@ -125,6 +190,14 @@ export function HtmlToPdf() {
         cx.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
         if (p > 0) pdf.addPage([pageW, pageH], orient === "landscape" ? "landscape" : "portrait");
         pdf.addImage(tmp.toDataURL("image/jpeg", 0.92), "JPEG", m, m, usableW, sh * ratio);
+        // A selectable, searchable text layer on top of the picture (invisible ink).
+        for (const r of runsByPage[p]) {
+          const y = m + baselineOf(r) - p * usableH;
+          if (y < 1 || y > pageH - 1) continue;
+          pdf.setFont("helvetica", r.style);
+          pdf.setFontSize(r.size * domToPt);
+          pdf.text(r.text, m + r.x * domToPt, y, { renderingMode: "invisible", baseline: "alphabetic" });
+        }
       }
       const blob = pdf.output("blob");
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -171,9 +244,9 @@ export function HtmlToPdf() {
           </label>
         </div>
         <button className="btn primary" disabled={busy || (!html.trim() && !css.trim())} onClick={doPrint}>Save as PDF</button>
-        <button className="btn" disabled={busy || !html.trim()} onClick={downloadPdf}>{busy ? status || "Working" : "Download .pdf (image)"}</button>
+        <button className="btn" disabled={busy || !html.trim()} onClick={downloadPdf}>{busy ? status || "Working" : "Download .pdf"}</button>
         {err && <p className="err" role="alert">{err}</p>}
-        <p className="hint"><b>Save as PDF</b> uses your browser&rsquo;s own print engine — pick <b>“Save as PDF”</b> in the dialog. The words stay sharp and selectable (best quality). <b>Download .pdf</b> makes the file straight away, but the page is a picture, so its text cannot be selected. Everything happens on your device.</p>
+        <p className="hint"><b>Save as PDF</b> uses your browser&rsquo;s own print engine — pick <b>“Save as PDF”</b> in the dialog. The words stay sharp and vector (best quality). <b>Download .pdf</b> makes the file straight away with <b>selectable, searchable text</b> on top of the page picture. Everything happens on your device.</p>
       </div>
 
       <section className="wb-out" aria-label="Preview and result">
@@ -184,7 +257,7 @@ export function HtmlToPdf() {
         {result ? (
           <ul className="res">
             <li>
-              <div><b>{result.name}</b><span>{result.pages} page{result.pages === 1 ? "" : "s"}, {kb(result.size)} — image PDF (text not selectable)</span></div>
+              <div><b>{result.name}</b><span>{result.pages} page{result.pages === 1 ? "" : "s"}, {kb(result.size)} — text is selectable and searchable</span></div>
               <a className="btn" href={result.url} download={result.name}>Download</a>
             </li>
           </ul>
