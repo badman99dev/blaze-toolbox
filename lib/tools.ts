@@ -43,7 +43,7 @@ export const TOOLS: Tool[] = [
   { slug: "image-convert", cat: "edit", mode: "local", name: "Image converter", blurb: "Convert between PNG, JPG, WebP and AVIF while keeping the quality you want.", meta: "PNG, JPG, WebP, AVIF" },
   { slug: "circle-crop", cat: "edit", mode: "local", name: "Circle crop", blurb: "Crop a photo into a round avatar with a transparent background.", meta: "Transparent PNG" },
   { slug: "watermark", cat: "edit", mode: "local", name: "Add a watermark", blurb: "Stamp text over your photos to mark them as yours.", meta: "Text watermark" },
-  { slug: "pdf-grayscale", cat: "edit", mode: "local", name: "Color PDF to grayscale", blurb: "Make a black-and-white copy that is cheaper to print.", meta: "Keeps page size" },
+  { slug: "pdf-grayscale", cat: "edit", mode: "local", name: "Color PDF to grayscale", blurb: "Turn a color PDF gray without flattening it — the text stays selectable, so you can still search and copy.", meta: "Keeps text selectable" },
 
   { slug: "svg-to-png", cat: "dev", mode: "local", name: "SVG to PNG", blurb: "Rasterize an SVG to a crisp PNG at the exact pixel size you need.", meta: "Any size" },
   { slug: "favicon-generator", cat: "dev", mode: "local", name: "Favicon and app icons", blurb: "Make a full icon pack, PNG sizes plus .ico, from a single image.", meta: "ICO + PNG pack" },

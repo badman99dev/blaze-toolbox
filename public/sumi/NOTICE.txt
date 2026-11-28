@@ -1,0 +1,16 @@
+This folder contains the WebAssembly build of sumi and its dependencies.
+
+sumi — https://github.com/champierre/sumi
+  Copyright (c) 2026 Junya Ishihara
+  MIT License (see LICENSE.txt)
+
+Compiled with wasm-bindgen and built on these crates (all permissively licensed):
+  lopdf        MIT
+  flate2       MIT OR Apache-2.0
+  zune-jpeg    MIT (zune-jpeg / zune-core)
+  thiserror    MIT OR Apache-2.0
+  wasm-bindgen MIT OR Apache-2.0
+  js-sys       MIT OR Apache-2.0
+
+sumi_wasm.js and sumi_wasm_bg.wasm are generated from the sumi source; the
+converter runs entirely in the browser and no PDF is ever uploaded.
