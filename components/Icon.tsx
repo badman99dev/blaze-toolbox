@@ -2,6 +2,7 @@ const P: Record<string, React.ReactNode> = {
   "passport-photo": <><rect x="4" y="5" width="11" height="14" /><rect x="17" y="5" width="11" height="14" /><rect x="4" y="21" width="11" height="7" /><rect x="17" y="21" width="11" height="7" /></>,
   "image-resize": <><rect x="4" y="12" width="16" height="16" /><path d="M20 4h8v8M28 4 16 16" /></>,
   "image-compress": <><path d="M12 5l4 4 4-4M12 27l4-4 4 4M5 16h22" /></>,
+  "image-target-size": <><circle cx="16" cy="21" r="7.5" /><circle cx="16" cy="21" r="2.6" /><path d="M16 3v9M12.5 8.5L16 12l3.5-3.5" /></>,
   "image-convert": <><rect x="4" y="8" width="13" height="16" rx="2" /><path d="M20 13h8M25 10l3 3-3 3M28 23h-8M23 20l-3 3 3 3" /></>,
   "heic-to-jpg": <><rect x="4" y="7" width="13" height="18" rx="2" /><path d="M14 13l3-4 3 4M17 9v9" /><path d="M21 23h7M25 20l3 3-3 3" /></>,
   "svg-to-png": <><rect x="4" y="5" width="13" height="13" rx="2" /><path d="M8 15l3-4 2 2.5 2-3 2 4.5" /><path d="M19 20l6 5 6-5M25 25v-9" transform="translate(-2 0)" /></>,

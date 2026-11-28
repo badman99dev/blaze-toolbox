@@ -18,6 +18,47 @@ function draw(b: ImageBitmap, w: number, h: number) {
   x.drawImage(b, 0, 0, w, h);
   return c;
 }
+function drawFrom(src: CanvasImageSource, w: number, h: number, fill?: string) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const x = c.getContext("2d")!;
+  if (fill) { x.fillStyle = fill; x.fillRect(0, 0, w, h); }
+  x.imageSmoothingQuality = "high";
+  x.drawImage(src, 0, 0, w, h);
+  return c;
+}
+
+// Compress to an exact file size: binary-search the highest JPEG/WebP quality
+// that still fits the target, and if even a low quality is too big, step the
+// pixel size down and try again. Returns the best file it could make.
+const MIN_QUALITY = 0.28;
+const MIN_LONG_EDGE = 320;
+type Fitted = { blob: Blob; quality: number; width: number; height: number; met: boolean };
+async function shrinkToTarget(b: ImageBitmap, type: string, target: number): Promise<Fitted> {
+  const fill = type === "image/jpeg" ? "#fff" : undefined;
+  const base = drawFrom(b, b.width, b.height, fill);
+  let scale = 1;
+  let fallback: Fitted | null = null;
+  for (let step = 0; step < 8; step++) {
+    const w = Math.max(1, Math.round(b.width * scale));
+    const h = Math.max(1, Math.round(b.height * scale));
+    const c = w === b.width && h === b.height ? base : drawFrom(base, w, h, fill);
+    const low = await toBlob(c, type, MIN_QUALITY);
+    if (low.size <= target) {
+      let lo = MIN_QUALITY, hi = 0.95, quality = MIN_QUALITY, blob = low;
+      for (let i = 0; i < 6; i++) {
+        const mid = (lo + hi) / 2;
+        const t = await toBlob(c, type, mid);
+        if (t.size <= target) { quality = mid; blob = t; lo = mid; } else hi = mid;
+      }
+      return { blob, quality: Math.round(quality * 100), width: w, height: h, met: true };
+    }
+    fallback = { blob: low, quality: Math.round(MIN_QUALITY * 100), width: w, height: h, met: false };
+    if (Math.max(w, h) <= MIN_LONG_EDGE) break;
+    scale *= 0.82;
+  }
+  return fallback!;
+}
 function canvas(w: number, h: number, fill?: string) {
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
@@ -182,6 +223,7 @@ async function renderPage(doc: Awaited<ReturnType<typeof openPdf>>, n: number, s
 
 const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: string }> = {
   "image-compress": { accept: "image/*", multi: true, hint: "JPG, PNG or WebP. Pick several, then add more below.", cta: "Compress" },
+  "image-target-size": { accept: "image/*", multi: true, hint: "Pick photos to shrink to your target size. Add more below.", cta: "Compress to target" },
   "image-convert": { accept: "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp", multi: true, hint: "Pick images to convert, then add more below.", cta: "Convert" },
   "heic-to-jpg": { accept: ".heic,.heif,image/heic,image/heif", multi: true, hint: "iPhone HEIC or HEIF photos. Pick several, then add more below.", cta: "Convert" },
   "svg-to-png": { accept: ".svg,image/svg+xml", multi: true, hint: "One or more SVG files; add more below.", cta: "Rasterize" },
@@ -207,8 +249,10 @@ export function Workbench({ slug }: { slug: string }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [err, setErr] = useState("");
-  const [fmt, setFmt] = useState(slug === "image-compress" || slug === "heic-to-jpg" || slug === "watermark" ? "image/jpeg" : slug === "image-convert" ? "image/webp" : "image/png");
+  const [fmt, setFmt] = useState(slug === "image-compress" || slug === "image-target-size" || slug === "heic-to-jpg" || slug === "watermark" ? "image/jpeg" : slug === "image-convert" ? "image/webp" : "image/png");
   const [q, setQ] = useState(70);
+  const [target, setTarget] = useState("200");
+  const [targetUnit, setTargetUnit] = useState("KB");
   const [scale, setScale] = useState(2);
   const [scan, setScan] = useState(true);
   const [svgW, setSvgW] = useState("512");
@@ -285,6 +329,20 @@ export function Workbench({ slug }: { slug: string }) {
           const blob = await toBlob(draw(b, b.width, b.height), type, q / 100);
           const note = `${kb(f.size)} to ${kb(blob.size)} (${blob.size < f.size ? "-" : "+"}${Math.abs(Math.round((1 - blob.size / f.size) * 100))}%)`;
           res.push({ name: `${base(f.name)}-compressed.${EXT[type]}`, url: keep(blob), note });
+        }
+      } else if (slug === "image-target-size") {
+        const type = fmt === "image/png" ? "image/jpeg" : fmt;
+        const unit = targetUnit === "MB" ? 1048576 : 1024;
+        const want = Math.max(1024, Math.round((parseFloat(target) || 200) * unit));
+        for (const f of files) {
+          setStatus(`Fitting ${f.name} to ${kb(want)}`);
+          const b = await createImageBitmap(f);
+          const r = await shrinkToTarget(b, type, want);
+          const dim = r.width !== b.width ? `, ${r.width} × ${r.height} px` : "";
+          const note = r.met
+            ? `Fits ${kb(want)}: ${kb(f.size)} to ${kb(r.blob.size)} at quality ${r.quality}%${dim}`
+            : `Smallest we could make it: ${kb(r.blob.size)} at quality ${r.quality}%${dim} — could not reach ${kb(want)}`;
+          res.push({ name: `${base(f.name)}-${target}${targetUnit.toLowerCase()}.${EXT[type]}`, url: keep(r.blob), note });
         }
       } else if (slug === "image-convert") {
         for (const f of files) {
@@ -597,6 +655,24 @@ export function Workbench({ slug }: { slug: string }) {
           <label>Quality: {q}<input type="range" min="10" max="95" value={q} onChange={(e) => setQ(+e.target.value)} /></label>
           {imgFmt()}
           <p className="hint">Lower quality gives a smaller file. PNG photos are saved as JPG or WebP.</p>
+        </>}
+        {slug === "image-target-size" && <>
+          <label>Target size
+            <span className="pair">
+              <input type="number" min="5" step="1" inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value)} />
+              <select value={targetUnit} onChange={(e) => setTargetUnit(e.target.value)}>
+                <option value="KB">KB</option>
+                <option value="MB">MB</option>
+              </select>
+            </span>
+          </label>
+          <label>Format
+            <select value={fmt} onChange={(e) => setFmt(e.target.value)}>
+              <option value="image/jpeg">JPG</option>
+              <option value="image/webp">WebP</option>
+            </select>
+          </label>
+          <p className="hint">Quality, and if needed the pixel size, drop automatically until the file fits your target. Great for upload limits and forms — like “under 200 KB”. WebP gets a bit smaller than JPG.</p>
         </>}
         {slug === "image-convert" && <>
           {imgFmt(true)}
