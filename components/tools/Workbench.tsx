@@ -243,9 +243,7 @@ export function Workbench({ slug }: { slug: string }) {
   const [pnFormat, setPnFormat] = useState("arabic");
   const [pnDigits, setPnDigits] = useState("1");
   const [pnContinuous, setPnContinuous] = useState(false);
-  const [grayMode, setGrayMode] = useState<"grayscale" | "monochrome">("grayscale");
   const [grayModel, setGrayModel] = useState<"luma" | "colorimetric">("luma");
-  const [grayThreshold, setGrayThreshold] = useState(50);
   const urls = useRef<string[]>([]);
 
   const keep = (blob: Blob) => { const u = URL.createObjectURL(blob); urls.current.push(u); return u; };
@@ -408,14 +406,14 @@ export function Workbench({ slug }: { slug: string }) {
         const sumi = await getSumi();
         const bytes = new Uint8Array(await files[0].arrayBuffer());
         setStatus("Rewriting colors");
-        const { pdf, report } = sumi.sumi_convert(bytes, grayMode, grayModel, grayThreshold / 100);
+        const { pdf, report } = sumi.sumi_convert(bytes, "grayscale", grayModel, 0.5);
         const out = new Uint8Array(pdf);
         const blob = new Blob([out as unknown as BlobPart], { type: "application/pdf" });
         const warn = report.warnings ? `, ${report.warnings} part${report.warnings === 1 ? "" : "s"} left as-is` : "";
         res.push({
-          name: `${base(files[0].name)}-${grayMode === "monochrome" ? "monochrome" : "grayscale"}.pdf`,
+          name: `${base(files[0].name)}-grayscale.pdf`,
           url: keep(blob),
-          note: `${grayMode === "monochrome" ? "Black and white" : "Grayscale"}, text kept${warn}, ${kb(files[0].size)} to ${kb(blob.size)}`,
+          note: `Grayscale, text kept${warn}, ${kb(files[0].size)} to ${kb(blob.size)}`,
         });
       } else if (slug === "pdf-merge") {
         const { PDFDocument } = await import("pdf-lib");
@@ -615,24 +613,13 @@ export function Workbench({ slug }: { slug: string }) {
           <label className="check"><input type="checkbox" checked={scan} onChange={(e) => setScan(e.target.checked)} />Scanned look<small>Black and white with higher contrast, like a document scanner.</small></label>
         )}
         {slug === "pdf-grayscale" && <>
-          <label>Output
-            <select value={grayMode} onChange={(e) => setGrayMode(e.target.value as "grayscale" | "monochrome")}>
-              <option value="grayscale">Grayscale</option>
-              <option value="monochrome">Black and white</option>
+          <label>Gray tones
+            <select value={grayModel} onChange={(e) => setGrayModel(e.target.value as "luma" | "colorimetric")}>
+              <option value="luma">Standard (PDF spec)</option>
+              <option value="colorimetric">Colorimetric (closer to print)</option>
             </select>
           </label>
-          {grayMode === "grayscale" && (
-            <label>Gray tones
-              <select value={grayModel} onChange={(e) => setGrayModel(e.target.value as "luma" | "colorimetric")}>
-                <option value="luma">Standard (PDF spec)</option>
-                <option value="colorimetric">Colorimetric (closer to print)</option>
-              </select>
-            </label>
-          )}
-          {grayMode === "monochrome" && (
-            <label>Threshold: {grayThreshold}%<input type="range" min="5" max="95" step="1" value={grayThreshold} onChange={(e) => setGrayThreshold(+e.target.value)} /></label>
-          )}
-          <p className="hint">Only the colors change — text, fonts and vectors are kept, so the words stay <b>selectable and searchable</b>. Nothing is uploaded. Black and white is best for scans and forms; grayscale keeps shading and photos.</p>
+          <p className="hint">Only the colors change — text, fonts and vectors are kept, so the words stay <b>selectable and searchable</b>. Nothing is uploaded.</p>
         </>}
         {slug === "pdf-merge" && <p className="hint">Files are joined in the order you pick them. Pick again to replace and reorder.</p>}
         {slug === "pdf-split" && <>
