@@ -86,6 +86,19 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 
 /* ---------- home: tool categories (everyday, editing, developer) ---------- */
 .tool-cats{display:flex;flex-direction:column}
+
+.tools-region{display:flex;flex-direction:column}
+.search{position:sticky;top:4.75rem;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .875rem;margin:clamp(.5rem,2vw,1rem) 0 0;padding:.75rem 0;background:var(--bg)}
+.search-box{position:relative;display:flex;align-items:center;gap:.5rem;flex:1;min-width:min(100%,16rem);padding:0 .75rem;background:var(--soft);border:1.5px solid var(--line);border-radius:.625rem;transition:border-color .15s,background .15s}
+.search-box:focus-within{border-color:var(--accent);background:#fff}
+.search-box svg{flex:none;color:var(--muted)}
+.search-box input{flex:1;min-width:0;padding:.7rem 0;font:inherit;color:var(--ink);background:none;border:0;outline:none;-webkit-appearance:none;appearance:none}
+.search-box input::-webkit-search-cancel-button{display:none}
+.search-clear{display:inline-flex;align-items:center;justify-content:center;flex:none;width:1.75rem;height:1.75rem;font-size:.75rem;color:var(--muted);background:#fff;border:1px solid var(--edge);border-radius:.375rem;cursor:pointer}
+.search-clear:hover{border-color:var(--ink);color:var(--ink)}
+.search-count{margin:0;font-size:var(--fs-small);color:var(--muted);font-variant-numeric:tabular-nums}
+.search-none{font-size:var(--fs-small);color:var(--muted);padding:1.5rem 0}
+.linkish{font:inherit;font-size:inherit;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
 .tools-section{margin-top:clamp(2.25rem,5vw,3.75rem)}
 .tools-section:first-child{margin-top:0}
 .tools-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.125rem .875rem;margin-bottom:clamp(.875rem,2vw,1.25rem);padding-bottom:.75rem;border-bottom:1px solid var(--line)}
