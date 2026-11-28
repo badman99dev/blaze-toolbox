@@ -162,6 +162,9 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .opts input[type=color]::-webkit-color-swatch{border:0;border-radius:calc(var(--r) - .25rem)}
 .opts input[type=color]::-moz-color-swatch{border:0;border-radius:calc(var(--r) - .25rem)}
 .opts input[type=range]{width:100%;accent-color:var(--ink);min-height:2.75rem}
+.opts input[type=file]{font:inherit;font-size:var(--fs-small);width:100%;min-width:0;min-height:2.75rem;padding:.35rem .5rem;border:1px solid var(--edge);border-radius:var(--r);background:#fff;color:var(--muted)}
+.opts input[type=file]::file-selector-button{font:inherit;font-size:var(--fs-small);font-weight:600;margin-right:.6rem;padding:.45rem .75rem;border:1px solid var(--edge);border-radius:calc(var(--r) - .1rem);background:var(--soft);color:var(--ink);cursor:pointer}
+.opts input[type=file]:hover::file-selector-button{border-color:var(--accent);color:var(--accent)}
 .check{display:flex!important;gap:.625rem;align-items:flex-start}
 .check input{width:1.125rem;height:1.125rem;margin-top:.125rem;accent-color:var(--ink)}
 .check small{display:block;font-weight:400;color:var(--muted)}

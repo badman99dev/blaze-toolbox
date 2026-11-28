@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSumi } from "@/lib/sumi";
 import { fetchProgress, downloadParts, loadLib } from "@/lib/loadlog";
 
@@ -505,6 +505,150 @@ async function ffmpegExtract(file: File, fmt: string, kbps: number, onProg: (p: 
   if (code !== 0 || !data || typeof data === "string" || !data.length) throw new Error("Could not find an audio track in this file. Is it a real video or audio file?");
   return new Blob([data as unknown as BlobPart], { type: FF_MIME[fmt] });
 }
+// ---- Audio to video -------------------------------------------------------
+// Puts an audio track on a still background (a plain black or white frame, or a
+// picture the user picks) and encodes a real MP4 with ffmpeg.wasm. The frame is
+// drawn here in a canvas at the chosen size and handed to ffmpeg as one looping
+// PNG, so no ffmpeg filters are needed. Nothing is uploaded — only the engine
+// binary is downloaded, once.
+const VIDEO_SIZES = [
+  { id: "1920x1080", label: "1920 × 1080 (Full HD, landscape)" },
+  { id: "1280x720", label: "1280 × 720 (HD, landscape)" },
+  { id: "1080x1080", label: "1080 × 1080 (Square)" },
+  { id: "1080x1920", label: "1080 × 1920 (Vertical, Reels/Shorts)" },
+  { id: "854x480", label: "854 × 480 (SD, small file)" },
+];
+const videoSizeLabel = (id: string) => VIDEO_SIZES.find((s) => s.id === id)?.label ?? id;
+function solidCanvas(W: number, H: number, fill: string) {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d")!;
+  x.fillStyle = fill; x.fillRect(0, 0, W, H);
+  return c;
+}
+function fitCanvas(src: CanvasImageSource, sw: number, sh: number, W: number, H: number, mode: "cover" | "contain") {
+  const c = solidCanvas(W, H, "#000");
+  const x = c.getContext("2d")!;
+  const scale = mode === "cover" ? Math.max(W / sw, H / sh) : Math.min(W / sw, H / sh);
+  const dw = sw * scale, dh = sh * scale;
+  x.imageSmoothingQuality = "high";
+  x.drawImage(src, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  return c;
+}
+async function makeBgBlob(bg: string, img: File | null, W: number, H: number, mode: "cover" | "contain"): Promise<Blob> {
+  if (bg === "image") {
+    if (!img) throw new Error("Pick a picture for the background, or choose a black or white screen.");
+    const bmp = await createImageBitmap(img);
+    try { return await toBlob(fitCanvas(bmp, bmp.width, bmp.height, W, H, mode), "image/png"); }
+    finally { bmp.close(); }
+  }
+  return toBlob(solidCanvas(W, H, bg === "white" ? "#ffffff" : "#000000"), "image/png");
+}
+async function ffmpegAudioToVideo(audio: File, bg: Blob, W: number, H: number, kbps: number, dur: number, onProg: (p: number) => void) {
+  const ff = await getFfmpeg();
+  const { fetchFile } = await loadLib("ffmpeg-util", "Audio engine (ffmpeg helper)", () => import("@ffmpeg/util"));
+  ffProg = onProg;
+  const aName = "a_" + (audio.name.replace(/[^\w.-]/g, "_") || "input");
+  const out = "out.mp4";
+  await ff.writeFile("bg.png", await fetchFile(bg));
+  await ff.writeFile(aName, await fetchFile(audio));
+  const args = [
+    "-loop", "1", "-framerate", "25", "-i", "bg.png",
+    "-i", aName,
+    "-map", "0:v:0", "-map", "1:a:0",
+    "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage", "-crf", "26", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", `${kbps}k`,
+  ];
+  // A looping image never "ends", so -shortest alone does not reliably stop the
+  // video at the audio's length. -t (when the length is known) plus these two
+  // flags pin the output to exactly the audio.
+  if (dur > 0) args.push("-t", dur.toFixed(3));
+  else args.push("-shortest");
+  args.push("-fflags", "+shortest", "-max_interleave_delta", "0", "-movflags", "+faststart", out);
+  const code = await ff.exec(args);
+  let data: Uint8Array | string | null = null;
+  try { data = await ff.readFile(out); } catch { data = null; }
+  try { await ff.deleteFile("bg.png"); } catch { /* ignore */ }
+  try { await ff.deleteFile(aName); } catch { /* ignore */ }
+  try { await ff.deleteFile(out); } catch { /* ignore */ }
+  if (code !== 0 || !data || typeof data === "string" || !data.length) throw new Error("Could not build the video from this file. Is it a real audio file?");
+  return new Blob([data as unknown as BlobPart], { type: "video/mp4" });
+}
+// ---- Trim / split audio and video -----------------------------------------
+// Cuts by re-encoding with ffmpeg.wasm (frame-accurate, unlike a stream copy).
+// The audio or video keeps its own format where ffmpeg can write it; video
+// always comes out as MP4 (H.264 + AAC). Nothing is uploaded.
+type Cut = { start: number; dur: number; name: string };
+function parseTime(s: string): number {
+  const t = s.trim();
+  if (!t) return NaN;
+  const parts = t.split(":").map((p) => parseFloat(p));
+  if (!parts.length || parts.length > 3 || parts.some((p) => !Number.isFinite(p) || p < 0)) return NaN;
+  let sec = 0;
+  for (const p of parts) sec = sec * 60 + p;
+  return sec;
+}
+function fmtTime(s: number): string {
+  const sec = Math.floor(s % 60), m = Math.floor(s / 60);
+  if (m < 60) return `${m}:${String(sec).padStart(2, "0")}`;
+  return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+function outExt(file: File, isVideo: boolean): string {
+  if (isVideo) return "mp4";
+  const e = (file.name.split(".").pop() || "").toLowerCase();
+  if (e === "wav") return "wav";
+  if (e === "flac") return "flac";
+  if (e === "ogg" || e === "oga" || e === "opus") return "ogg";
+  if (e === "m4a" || e === "aac" || e === "mp4") return "m4a";
+  return "mp3";
+}
+function trimEncoder(file: File, isVideo: boolean): { args: string[]; mime: string; faststart: boolean } {
+  if (isVideo) return { args: ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"], mime: "video/mp4", faststart: true };
+  switch (outExt(file, false)) {
+    case "wav": return { args: ["-c:a", "pcm_s16le"], mime: "audio/wav", faststart: false };
+    case "flac": return { args: ["-c:a", "flac"], mime: "audio/flac", faststart: false };
+    case "ogg": return { args: ["-c:a", "libvorbis", "-b:a", "192k"], mime: "audio/ogg", faststart: false };
+    case "m4a": return { args: ["-c:a", "aac", "-b:a", "192k"], mime: "audio/mp4", faststart: true };
+    default: return { args: ["-c:a", "libmp3lame", "-b:a", "192k"], mime: "audio/mpeg", faststart: false };
+  }
+}
+function mediaDuration(file: File): Promise<number> {
+  return new Promise((ok, no) => {
+    const el = document.createElement(file.type.startsWith("video/") ? "video" : "audio");
+    const url = URL.createObjectURL(file);
+    const done = () => URL.revokeObjectURL(url);
+    el.preload = "metadata";
+    el.onloadedmetadata = () => { const d = el.duration; done(); Number.isFinite(d) && d > 0 ? ok(d) : no(new Error("This file does not report a length, so it cannot be trimmed.")); };
+    el.onerror = () => { done(); no(new Error("Could not read this file. Is it a real audio or video file?")); };
+    el.src = url;
+  });
+}
+async function ffmpegTrim(file: File, jobs: Cut[], onProg: (done: number, total: number, label: string) => void) {
+  const ff = await getFfmpeg();
+  const { fetchFile } = await loadLib("ffmpeg-util", "Audio engine (ffmpeg helper)", () => import("@ffmpeg/util"));
+  const isVideo = file.type.startsWith("video/");
+  const ext = outExt(file, isVideo);
+  const enc = trimEncoder(file, isVideo);
+  const inName = "in_" + (file.name.replace(/[^\w.-]/g, "_") || "input");
+  await ff.writeFile(inName, await fetchFile(file));
+  const outs: { name: string; blob: Blob }[] = [];
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    const segName = `seg${i}.${ext}`;
+    ffProg = (p) => onProg(i + Math.max(0, Math.min(1, p)), jobs.length, job.name);
+    const args = ["-ss", job.start.toFixed(3), "-i", inName, "-t", job.dur.toFixed(3), ...enc.args];
+    if (enc.faststart) args.push("-movflags", "+faststart");
+    args.push(segName);
+    const code = await ff.exec(args);
+    let data: Uint8Array | string | null = null;
+    try { data = await ff.readFile(segName); } catch { data = null; }
+    try { await ff.deleteFile(segName); } catch { /* ignore */ }
+    if (code !== 0 || !data || typeof data === "string" || !data.length) throw new Error("Could not cut this part of the file.");
+    outs.push({ name: job.name, blob: new Blob([data as unknown as BlobPart], { type: enc.mime }) });
+  }
+  try { await ff.deleteFile(inName); } catch { /* ignore */ }
+  return outs;
+}
 function buildIco(images: { size: number; bytes: Uint8Array }[]) {
   const header = 6 + 16 * images.length;
   const total = header + images.reduce((s, i) => s + i.bytes.length, 0);
@@ -558,6 +702,8 @@ const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: s
   "pdf-lock": { accept: "application/pdf", multi: false, hint: "One PDF. Choose a password to open it.", cta: "Lock" },
   "pdf-page-numbers": { accept: "application/pdf", multi: true, hint: "One or more PDFs. Numbers continue in this order — add more or reorder below.", cta: "Add page numbers" },
   "video-to-audio": { accept: "video/*,audio/*", multi: true, hint: "Pick a video (or an audio file) to take the sound from; add more below.", cta: "Extract audio" },
+  "audio-to-video": { accept: "audio/*,video/*", multi: false, hint: "Pick a song, voice note or any audio file to put on a video.", cta: "Make video" },
+  "trim-media": { accept: "audio/*,video/*", multi: false, hint: "Pick an audio or video file to trim or split.", cta: "Trim / split" },
 };
 
 export function Workbench({ slug }: { slug: string }) {
@@ -579,6 +725,18 @@ export function Workbench({ slug }: { slug: string }) {
   const [pcTargetUnit, setPcTargetUnit] = useState("MB");
   const [vaFmt, setVaFmt] = useState("mp3");
   const [vaBitrate, setVaBitrate] = useState("192");
+  const [avBg, setAvBg] = useState("black");
+  const [avSize, setAvSize] = useState("1280x720");
+  const [avFit, setAvFit] = useState<"cover" | "contain">("cover");
+  const [avBitrate, setAvBitrate] = useState("192");
+  const [avBgFile, setAvBgFile] = useState<File | null>(null);
+  const [tmMode, setTmMode] = useState("trim");
+  const [tmFrom, setTmFrom] = useState("");
+  const [tmTo, setTmTo] = useState("");
+  const [tmSplit, setTmSplit] = useState("parts");
+  const [tmParts, setTmParts] = useState("2");
+  const [tmEvery, setTmEvery] = useState("30");
+  const [tmDur, setTmDur] = useState(0);
   const [scale, setScale] = useState(2);
   const [scan, setScan] = useState(true);
   const [svgW, setSvgW] = useState("512");
@@ -615,6 +773,13 @@ export function Workbench({ slug }: { slug: string }) {
   const [pnContinuous, setPnContinuous] = useState(false);
   const [grayModel, setGrayModel] = useState<"luma" | "colorimetric">("luma");
   const urls = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (slug !== "trim-media" || !files[0]) { setTmDur(0); return; }
+    let live = true;
+    mediaDuration(files[0]).then((d) => { if (live) setTmDur(d); }).catch(() => { if (live) setTmDur(0); });
+    return () => { live = false; };
+  }, [slug, files]);
 
   const keep = (blob: Blob) => { const u = URL.createObjectURL(blob); urls.current.push(u); return u; };
   const orderMatters = slug === "pdf-merge" || slug === "image-to-pdf" || slug === "pdf-page-numbers";
@@ -941,6 +1106,46 @@ export function Workbench({ slug }: { slug: string }) {
             note: `${audioLabel(fmt)}${audioLossy(fmt) ? `, ${kbps} kbps` : ", lossless"}, ${kb(blob.size)}`,
           });
         }
+      } else if (slug === "audio-to-video") {
+        const f = files[0];
+        if (!f) throw new Error("Pick an audio file first.");
+        const [W, H] = avSize.split("x").map(Number);
+        const kbps = Number(avBitrate) || 192;
+        setStatus("Preparing the frame");
+        const bgBlob = await makeBgBlob(avBg, avBgFile, W, H, avFit);
+        const dur = await mediaDuration(f).catch(() => 0);
+        setStatus("Building the video (the first run loads the engine)...");
+        const blob = await ffmpegAudioToVideo(f, bgBlob, W, H, kbps, dur, (p) => setStatus(`Building ${base(f.name)}.mp4 — ${Math.round(p * 100)}%`));
+        const bgLabel = avBg === "image" ? "your picture" : `${avBg} screen`;
+        res.push({ name: `${base(f.name)}.mp4`, url: keep(blob), note: `${W} × ${H}, ${bgLabel}, ${kbps} kbps audio, ${kb(blob.size)}` });
+      } else if (slug === "trim-media") {
+        const f = files[0];
+        if (!f) throw new Error("Pick an audio or video file first.");
+        const dur = tmDur > 0 ? tmDur : await mediaDuration(f);
+        const ext = outExt(f, f.type.startsWith("video/"));
+        const jobs: Cut[] = [];
+        if (tmMode === "trim") {
+          let start = parseTime(tmFrom);
+          let end = tmTo.trim() ? parseTime(tmTo) : dur;
+          if (!Number.isFinite(start) || start < 0) start = 0;
+          if (!Number.isFinite(end) || end > dur) end = dur;
+          if (end <= start) throw new Error("The end time must be after the start time.");
+          jobs.push({ start, dur: end - start, name: `${base(f.name)}-trim.${ext}` });
+        } else if (tmSplit === "parts") {
+          const n = Math.max(2, Math.min(50, Math.round(Number(tmParts) || 2)));
+          const seg = dur / n;
+          for (let i = 0; i < n; i++) jobs.push({ start: i * seg, dur: seg, name: `${base(f.name)}-part${i + 1}.${ext}` });
+        } else {
+          const every = Math.max(1, Number(tmEvery) || 30);
+          const n = Math.max(1, Math.ceil(dur / every));
+          for (let i = 0; i < n; i++) { const s = i * every; jobs.push({ start: s, dur: Math.min(every, dur - s), name: `${base(f.name)}-part${i + 1}.${ext}` }); }
+        }
+        setStatus("Loading the engine (first time only)...");
+        const outs = await ffmpegTrim(f, jobs, (done, total, label) => setStatus(`Cutting ${label} — ${Math.round((done / total) * 100)}%`));
+        outs.forEach((o, i) => {
+          const j = jobs[i];
+          res.push({ name: o.name, url: keep(o.blob), note: `${fmtTime(j.start)} → ${fmtTime(j.start + j.dur)}, ${kb(o.blob.size)}` });
+        });
       } else if (slug === "pdf-unlock") {
         setStatus("Removing protection");
         const bytes = new Uint8Array(await files[0].arrayBuffer());
@@ -1231,6 +1436,80 @@ export function Workbench({ slug }: { slug: string }) {
             </label>
           )}
           <p className="hint">Takes the sound out of a video and drops the picture. <b>MP3 and WAV are made instantly on your device.</b> The other formats use a one-time audio engine (about 31 MB) that loads from the web once and is then cached. Your file is never uploaded.</p>
+        </>}
+        {slug === "audio-to-video" && <>
+          <label>Background
+            <select value={avBg} onChange={(e) => setAvBg(e.target.value)}>
+              <option value="black">Black screen</option>
+              <option value="white">White screen</option>
+              <option value="image">Your picture</option>
+            </select>
+          </label>
+          <label>Video size
+            <select value={avSize} onChange={(e) => setAvSize(e.target.value)}>
+              {VIDEO_SIZES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </label>
+          <label>Audio bitrate
+            <select value={avBitrate} onChange={(e) => setAvBitrate(e.target.value)}>
+              <option value="320">320 kbps</option>
+              <option value="256">256 kbps</option>
+              <option value="192">192 kbps</option>
+              <option value="128">128 kbps</option>
+              <option value="96">96 kbps</option>
+            </select>
+          </label>
+          {avBg === "image" && (
+            <label className="full">Picture for the background
+              <input type="file" accept="image/*" onChange={(e) => setAvBgFile(e.target.files?.[0] ?? null)} />
+            </label>
+          )}
+          {avBg === "image" && (
+            <label>Picture fit
+              <select value={avFit} onChange={(e) => setAvFit(e.target.value as "cover" | "contain")}>
+                <option value="cover">Fill the frame (crop edges)</option>
+                <option value="contain">Fit inside (add bars)</option>
+              </select>
+            </label>
+          )}
+          <p className="hint">Turns audio into a real <b>MP4</b> video on a black screen or your own picture. The first run loads a one-time video engine (about 31 MB) from the web and caches it. Your file is never uploaded.</p>
+        </>}
+        {slug === "trim-media" && <>
+          <label>What to do
+            <select value={tmMode} onChange={(e) => setTmMode(e.target.value)}>
+              <option value="trim">Trim one part</option>
+              <option value="split">Split into parts</option>
+            </select>
+          </label>
+          {tmMode === "trim" && (
+            <label>From
+              <input type="text" value={tmFrom} onChange={(e) => setTmFrom(e.target.value)} placeholder="0:00" inputMode="numeric" />
+            </label>
+          )}
+          {tmMode === "trim" && (
+            <label>To
+              <input type="text" value={tmTo} onChange={(e) => setTmTo(e.target.value)} placeholder={tmDur > 0 ? fmtTime(tmDur) : "end"} inputMode="numeric" />
+            </label>
+          )}
+          {tmMode === "split" && (
+            <label>Split by
+              <select value={tmSplit} onChange={(e) => setTmSplit(e.target.value)}>
+                <option value="parts">Equal parts</option>
+                <option value="every">Every few seconds</option>
+              </select>
+            </label>
+          )}
+          {tmMode === "split" && tmSplit === "parts" && (
+            <label>Number of parts
+              <input type="number" min={2} max={50} value={tmParts} onChange={(e) => setTmParts(e.target.value)} />
+            </label>
+          )}
+          {tmMode === "split" && tmSplit === "every" && (
+            <label>Seconds per part
+              <input type="number" min={1} value={tmEvery} onChange={(e) => setTmEvery(e.target.value)} />
+            </label>
+          )}
+          <p className="hint">{tmDur > 0 ? <>This file is <b>{fmtTime(tmDur)}</b> long. </> : null}Type times as <b>m:ss</b> or <b>h:mm:ss</b> (e.g. 1:30 or 0:12.5). The cut is re-encoded so it lands exactly where you want. The first run loads a one-time engine (about 31 MB) from the web; your file is never uploaded.</p>
         </>}
         {slug === "pdf-unlock" && <>
           <label>Password<input type="password" value={pdfPw} onChange={(e) => setPdfPw(e.target.value)} placeholder="Only if it asks for one" autoComplete="off" /></label>

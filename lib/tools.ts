@@ -51,6 +51,8 @@ export const TOOLS: Tool[] = [
   { slug: "pdf-lock", cat: "everyday", mode: "local", tags: ["pdf"], name: "Lock PDF", blurb: "Add a password so a PDF can only be opened by the people you share it with.", meta: "Password + permissions" },
   { slug: "pdf-page-numbers", cat: "everyday", mode: "local", tags: ["pdf"], name: "Add page numbers", blurb: "Stamp numbers like Page 1 of 10 on any PDF — pick position, style and where counting starts.", meta: "Pattern + position" },
   { slug: "video-to-audio", cat: "everyday", mode: "local", tags: ["video", "audio"], name: "Video to audio", blurb: "Take the sound out of a video and save it as MP3, WAV or another audio format. The picture is dropped.", meta: "MP3, WAV, M4A, OGG, OPUS, FLAC" },
+  { slug: "audio-to-video", cat: "everyday", mode: "local", tags: ["audio", "video"], name: "Audio to video", blurb: "Turn a song, voice note or any audio into a real MP4 — on a black screen or your own picture.", meta: "MP4, black screen or image" },
+  { slug: "trim-media", cat: "everyday", mode: "local", tags: ["audio", "video"], name: "Trim audio & video", blurb: "Cut a song or video to the exact part you want, or split it into equal parts.", meta: "Trim, split, cut" },
 
   { slug: "image-convert", cat: "edit", mode: "local", tags: ["image"], name: "Image converter", blurb: "Convert between PNG, JPG, WebP and AVIF while keeping the quality you want.", meta: "PNG, JPG, WebP, AVIF" },
   { slug: "circle-crop", cat: "edit", mode: "local", tags: ["image"], name: "Circle crop", blurb: "Crop a photo into a round avatar with a transparent background.", meta: "Transparent PNG" },
