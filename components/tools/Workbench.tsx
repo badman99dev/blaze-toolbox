@@ -33,6 +33,16 @@ function drawFrom(src: CanvasImageSource, w: number, h: number, fill?: string) {
 // pixel size down and try again. Returns the best file it could make.
 const MIN_QUALITY = 0.28;
 const MIN_LONG_EDGE = 320;
+const TARGET_MIN = 1024;            // 1 KB
+const TARGET_MAX = 20 * 1048576;    // 20 MB
+const unitBytes = (u: string) => (u === "MB" ? 1048576 : 1024);
+function clampTarget(v: string, u: string) {
+  const unit = unitBytes(u);
+  const n = parseFloat(v);
+  const min = TARGET_MIN / unit, max = TARGET_MAX / unit;
+  const c = Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
+  return String(Math.round(c * 1000) / 1000);
+}
 type Fitted = { blob: Blob; quality: number; width: number; height: number; met: boolean };
 async function shrinkToTarget(b: ImageBitmap, type: string, target: number): Promise<Fitted> {
   const fill = type === "image/jpeg" ? "#fff" : undefined;
@@ -403,8 +413,9 @@ export function Workbench({ slug }: { slug: string }) {
         }
       } else if (slug === "image-target-size") {
         const type = fmt === "image/png" ? "image/jpeg" : fmt;
-        const unit = targetUnit === "MB" ? 1048576 : 1024;
-        const want = Math.max(1024, Math.round((parseFloat(target) || 200) * unit));
+        const unit = unitBytes(targetUnit);
+        const raw = parseFloat(target);
+        const want = Math.min(TARGET_MAX, Math.max(TARGET_MIN, Math.round((Number.isFinite(raw) ? raw : 200) * unit)));
         for (const f of files) {
           if (f.size <= want) {
             if (pad) {
@@ -747,8 +758,17 @@ export function Workbench({ slug }: { slug: string }) {
         {slug === "image-target-size" && <>
           <label>Target size
             <span className="pair">
-              <input type="number" min="5" step="1" inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value)} />
-              <select value={targetUnit} onChange={(e) => setTargetUnit(e.target.value)}>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={targetUnit === "MB" ? "0.001" : "1"}
+                max={targetUnit === "MB" ? "20" : "20480"}
+                step={targetUnit === "MB" ? "any" : "1"}
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                onBlur={(e) => setTarget(clampTarget(e.target.value, targetUnit))}
+              />
+              <select value={targetUnit} onChange={(e) => { const u = e.target.value; setTargetUnit(u); setTarget((t) => clampTarget(t, u)); }}>
                 <option value="KB">KB</option>
                 <option value="MB">MB</option>
               </select>
@@ -760,7 +780,7 @@ export function Workbench({ slug }: { slug: string }) {
               <option value="image/webp">WebP</option>
             </select>
           </label>
-          <p className="hint">Quality, and if needed the pixel size, drop automatically until the file fits your target. Great for upload limits and forms — like “under 200 KB”. A photo that is already smaller than the target is left untouched, so a file never gets bigger. WebP gets a bit smaller than JPG.</p>
+          <p className="hint">Quality, and if needed the pixel size, drop automatically until the file fits your target. Target can be from 1 KB up to 20 MB. Great for upload limits and forms — like “under 200 KB”. A photo that is already smaller than the target is left untouched, so a file never gets bigger. WebP gets a bit smaller than JPG.</p>
           <label className="check"><input type="checkbox" checked={pad} onChange={(e) => setPad(e.target.checked)} />Reach the target exactly<small>If a photo is already under the target, add invisible metadata so it grows to the target. The picture is not changed and no quality is lost — handy when a form needs a minimum size.</small></label>
         </>}
         {slug === "image-convert" && <>
