@@ -16,7 +16,7 @@ export function ToolSearch() {
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const active = picked.length > 0;
   const found = TOOLS.filter((t) => {
-    if (active && !t.tags.some((x) => picked.includes(x))) return false;
+    if (active && !picked.every((x) => t.tags.includes(x))) return false;
     if (!words.length) return true;
     const h = haystack(t);
     return words.every((w) => h.includes(w));
@@ -71,7 +71,7 @@ export function ToolSearch() {
 
       {found.length === 0 ? (
         <p className="search-none">
-          No tools match{q.trim() ? <> “{q.trim()}”</> : null}{active ? <> with the selected type{picked.length > 1 ? "s" : ""}</> : null}.{" "}
+          No tools match{q.trim() ? <> “{q.trim()}”</> : null}{active ? <> with {picked.length > 1 ? "all" : "the"} selected type{picked.length > 1 ? "s" : ""}</> : null}.{" "}
           <button type="button" className="linkish" onClick={clear}>Show all tools</button>
         </p>
       ) : (
