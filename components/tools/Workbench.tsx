@@ -396,6 +396,112 @@ async function pdfToTarget(baseBytes: Uint8Array, photos: PdfPhoto[], target: nu
   }
   return { out: best, note: `closest we could get to ${kb(target)}` };
 }
+// ---- Video to audio -------------------------------------------------------
+// MP3 and WAV are made on-device with the Web Audio API (decode) plus lamejs
+// (MP3 only) — instant, no download. Every other format, and any container the
+// browser's own decoder cannot read (mkv, avi, …), goes through ffmpeg.wasm,
+// fetched once from a CDN on first use and then cached. Either way the picture
+// is dropped and only the audio track is kept — always on the device.
+const AUDIO_FMTS = [
+  { id: "mp3", label: "MP3", lossy: true },
+  { id: "wav", label: "WAV", lossy: false },
+  { id: "m4a", label: "M4A (AAC)", lossy: true },
+  { id: "ogg", label: "OGG (Vorbis)", lossy: true },
+  { id: "opus", label: "OPUS", lossy: true },
+  { id: "flac", label: "FLAC", lossy: false },
+];
+const audioLabel = (id: string) => AUDIO_FMTS.find((f) => f.id === id)?.label ?? id;
+const audioLossy = (id: string) => AUDIO_FMTS.find((f) => f.id === id)?.lossy ?? true;
+const FF_EXT: Record<string, string> = { mp3: "mp3", wav: "wav", m4a: "m4a", ogg: "ogg", opus: "opus", flac: "flac" };
+const FF_MIME: Record<string, string> = { mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", ogg: "audio/ogg", opus: "audio/ogg", flac: "audio/flac" };
+function ffArgs(fmt: string, kbps: number): string[] {
+  switch (fmt) {
+    case "mp3": return ["-vn", "-c:a", "libmp3lame", "-b:a", `${kbps}k`];
+    case "m4a": return ["-vn", "-c:a", "aac", "-b:a", `${kbps}k`];
+    case "ogg": return ["-vn", "-c:a", "libvorbis", "-b:a", `${kbps}k`];
+    case "opus": return ["-vn", "-c:a", "libopus", "-b:a", `${kbps}k`, "-f", "ogg"];
+    case "flac": return ["-vn", "-c:a", "flac"];
+    default: return ["-vn", "-c:a", "pcm_s16le"];
+  }
+}
+async function decodeAudio(file: File) {
+  const AC: typeof AudioContext = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const ctx = new AC();
+  try { return await ctx.decodeAudioData(await file.arrayBuffer()); }
+  finally { ctx.close(); }
+}
+function wavBlob(buf: AudioBuffer) {
+  const ch = Math.min(2, buf.numberOfChannels) || 1, sr = buf.sampleRate, n = buf.length;
+  const blockAlign = ch * 2, dataSize = n * blockAlign;
+  const ab = new ArrayBuffer(44 + dataSize), dv = new DataView(ab);
+  const ws = (off: number, s: string) => { for (let i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); };
+  ws(0, "RIFF"); dv.setUint32(4, 36 + dataSize, true); ws(8, "WAVE");
+  ws(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, ch, true);
+  dv.setUint32(24, sr, true); dv.setUint32(28, sr * blockAlign, true); dv.setUint16(32, blockAlign, true); dv.setUint16(34, 16, true);
+  ws(36, "data"); dv.setUint32(40, dataSize, true);
+  const chans: Float32Array[] = []; for (let c = 0; c < ch; c++) chans.push(buf.getChannelData(c));
+  let off = 44;
+  for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) { const s = Math.max(-1, Math.min(1, chans[c][i])); dv.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); off += 2; }
+  return new Blob([ab], { type: "audio/wav" });
+}
+async function mp3Blob(buf: AudioBuffer, kbps: number, onProg: (p: number) => void) {
+  const { Mp3Encoder } = await import("@breezystack/lamejs");
+  const ch = Math.min(2, buf.numberOfChannels) || 1;
+  const enc = new Mp3Encoder(ch, buf.sampleRate, kbps);
+  const l = buf.getChannelData(0), r = ch > 1 ? buf.getChannelData(1) : null;
+  const toI16 = (f: Float32Array, start: number, len: number) => {
+    const a = new Int16Array(len);
+    for (let i = 0; i < len; i++) { const s = Math.max(-1, Math.min(1, f[start + i])); a[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
+    return a;
+  };
+  const parts: BlobPart[] = [], block = 1152;
+  for (let i = 0; i < l.length; i += block) {
+    const len = Math.min(block, l.length - i);
+    const lv = toI16(l, i, len);
+    const b = r ? enc.encodeBuffer(lv, toI16(r, i, len)) : enc.encodeBuffer(lv);
+    if (b.length) parts.push(new Uint8Array(b) as unknown as BlobPart);
+    if (i % (block * 256) === 0) onProg(i / l.length);
+  }
+  const end = enc.flush();
+  if (end.length) parts.push(new Uint8Array(end) as unknown as BlobPart);
+  onProg(1);
+  return new Blob(parts, { type: "audio/mpeg" });
+}
+let ffmpegPromise: Promise<import("@ffmpeg/ffmpeg").FFmpeg> | null = null;
+let ffProg: (p: number) => void = () => {};
+async function getFfmpeg() {
+  if (!ffmpegPromise) {
+    ffmpegPromise = (async () => {
+      const { FFmpeg } = await import("@ffmpeg/ffmpeg");
+      const { toBlobURL } = await import("@ffmpeg/util");
+      const base = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
+      const ff = new FFmpeg();
+      ff.on("progress", ({ progress }) => { if (Number.isFinite(progress)) ffProg(Math.max(0, Math.min(1, progress))); });
+      await ff.load({
+        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+      });
+      return ff;
+    })();
+    ffmpegPromise.catch(() => { ffmpegPromise = null; });
+  }
+  return ffmpegPromise;
+}
+async function ffmpegExtract(file: File, fmt: string, kbps: number, onProg: (p: number) => void) {
+  const ff = await getFfmpeg();
+  const { fetchFile } = await import("@ffmpeg/util");
+  ffProg = onProg;
+  const input = "in_" + (file.name.replace(/[^\w.-]/g, "_") || "input");
+  const output = "out." + FF_EXT[fmt];
+  await ff.writeFile(input, await fetchFile(file));
+  const code = await ff.exec(["-i", input, ...ffArgs(fmt, kbps), output]);
+  let data: Uint8Array | string | null = null;
+  try { data = await ff.readFile(output); } catch { data = null; }
+  try { await ff.deleteFile(input); } catch { /* ignore */ }
+  try { await ff.deleteFile(output); } catch { /* ignore */ }
+  if (code !== 0 || !data || typeof data === "string" || !data.length) throw new Error("Could not find an audio track in this file. Is it a real video or audio file?");
+  return new Blob([data as unknown as BlobPart], { type: FF_MIME[fmt] });
+}
 function buildIco(images: { size: number; bytes: Uint8Array }[]) {
   const header = 6 + 16 * images.length;
   const total = header + images.reduce((s, i) => s + i.bytes.length, 0);
@@ -448,6 +554,7 @@ const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: s
   "pdf-unlock": { accept: "application/pdf", multi: false, hint: "One PDF. Enter its password if it asks for one.", cta: "Unlock" },
   "pdf-lock": { accept: "application/pdf", multi: false, hint: "One PDF. Choose a password to open it.", cta: "Lock" },
   "pdf-page-numbers": { accept: "application/pdf", multi: true, hint: "One or more PDFs. Numbers continue in this order — add more or reorder below.", cta: "Add page numbers" },
+  "video-to-audio": { accept: "video/*,audio/*", multi: true, hint: "Pick a video (or an audio file) to take the sound from; add more below.", cta: "Extract audio" },
 };
 
 export function Workbench({ slug }: { slug: string }) {
@@ -467,6 +574,8 @@ export function Workbench({ slug }: { slug: string }) {
   const [pcQ, setPcQ] = useState(60);
   const [pcTarget, setPcTarget] = useState("2");
   const [pcTargetUnit, setPcTargetUnit] = useState("MB");
+  const [vaFmt, setVaFmt] = useState("mp3");
+  const [vaBitrate, setVaBitrate] = useState("192");
   const [scale, setScale] = useState(2);
   const [scan, setScan] = useState(true);
   const [svgW, setSvgW] = useState("512");
@@ -806,6 +915,29 @@ export function Workbench({ slug }: { slug: string }) {
           const pct = Math.round((1 - out.length / f.size) * 100);
           res.push({ name: `${base(f.name)}-compressed.pdf`, url: keep(blob), note: `${kb(f.size)} to ${kb(out.length)} (-${pct}%), ${note}` });
         }
+      } else if (slug === "video-to-audio") {
+        const fmt = vaFmt, kbps = Number(vaBitrate) || 192;
+        for (const f of files) {
+          setStatus(`Reading ${f.name}`);
+          let blob: Blob | null = null;
+          if (fmt === "mp3" || fmt === "wav") {
+            try {
+              const buf = await decodeAudio(f);
+              blob = fmt === "wav"
+                ? wavBlob(buf)
+                : await mp3Blob(buf, kbps, (p) => setStatus(`Encoding ${f.name} — ${Math.round(p * 100)}%`));
+            } catch { blob = null; }
+          }
+          if (!blob) {
+            setStatus("Loading audio engine (first time only)…");
+            blob = await ffmpegExtract(f, fmt, kbps, (p) => setStatus(`Converting ${f.name} — ${Math.round(p * 100)}%`));
+          }
+          res.push({
+            name: `${base(f.name)}.${FF_EXT[fmt]}`,
+            url: keep(blob),
+            note: `${audioLabel(fmt)}${audioLossy(fmt) ? `, ${kbps} kbps` : ", lossless"}, ${kb(blob.size)}`,
+          });
+        }
       } else if (slug === "pdf-unlock") {
         setStatus("Removing protection");
         const bytes = new Uint8Array(await files[0].arrayBuffer());
@@ -1077,6 +1209,25 @@ export function Workbench({ slug }: { slug: string }) {
             )}
           </>}
           <p className="hint"><b>Optimize only</b> repacks the file structure — lossless, text stays selectable, nothing is blurred. <b>Compress</b> also re-encodes the photos inside the PDF at the quality or target size you pick while keeping text, fonts and vectors. Pages are never turned into images, so words stay selectable either way. A PDF that is already well optimized may barely change, and scanned photos that are already small cannot shrink much further.</p>
+        </>}
+        {slug === "video-to-audio" && <>
+          <label>Output format
+            <select value={vaFmt} onChange={(e) => setVaFmt(e.target.value)}>
+              {AUDIO_FMTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+            </select>
+          </label>
+          {audioLossy(vaFmt) && (
+            <label>Bitrate
+              <select value={vaBitrate} onChange={(e) => setVaBitrate(e.target.value)}>
+                <option value="320">320 kbps</option>
+                <option value="256">256 kbps</option>
+                <option value="192">192 kbps</option>
+                <option value="128">128 kbps</option>
+                <option value="96">96 kbps</option>
+              </select>
+            </label>
+          )}
+          <p className="hint">Takes the sound out of a video and drops the picture. <b>MP3 and WAV are made instantly on your device.</b> The other formats use a one-time audio engine (about 31 MB) that loads from the web once and is then cached. Your file is never uploaded.</p>
         </>}
         {slug === "pdf-unlock" && <>
           <label>Password<input type="password" value={pdfPw} onChange={(e) => setPdfPw(e.target.value)} placeholder="Only if it asks for one" autoComplete="off" /></label>

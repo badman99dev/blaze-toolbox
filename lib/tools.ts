@@ -1,12 +1,13 @@
 export type Category = "everyday" | "edit" | "dev";
 export type Mode = "local" | "cloud" | "hybrid";
-export type MediaTag = "image" | "pdf" | "video" | "text";
+export type MediaTag = "image" | "pdf" | "video" | "audio" | "text";
 export type Tool = { slug: string; name: string; blurb: string; meta: string; cat: Category; mode: Mode; tags: MediaTag[] };
 
 export const TAGS: { id: MediaTag; label: string }[] = [
   { id: "image", label: "Image" },
   { id: "pdf", label: "PDF" },
   { id: "video", label: "Video" },
+  { id: "audio", label: "Audio" },
   { id: "text", label: "Text" },
 ];
 
@@ -49,6 +50,7 @@ export const TOOLS: Tool[] = [
   { slug: "pdf-unlock", cat: "everyday", mode: "local", tags: ["pdf"], name: "Unlock PDF", blurb: "Remove a password or the printing and copying restrictions from a PDF you own.", meta: "Password or restrictions" },
   { slug: "pdf-lock", cat: "everyday", mode: "local", tags: ["pdf"], name: "Lock PDF", blurb: "Add a password so a PDF can only be opened by the people you share it with.", meta: "Password + permissions" },
   { slug: "pdf-page-numbers", cat: "everyday", mode: "local", tags: ["pdf"], name: "Add page numbers", blurb: "Stamp numbers like Page 1 of 10 on any PDF — pick position, style and where counting starts.", meta: "Pattern + position" },
+  { slug: "video-to-audio", cat: "everyday", mode: "local", tags: ["video", "audio"], name: "Video to audio", blurb: "Take the sound out of a video and save it as MP3, WAV or another audio format. The picture is dropped.", meta: "MP3, WAV, M4A, OGG, OPUS, FLAC" },
 
   { slug: "image-convert", cat: "edit", mode: "local", tags: ["image"], name: "Image converter", blurb: "Convert between PNG, JPG, WebP and AVIF while keeping the quality you want.", meta: "PNG, JPG, WebP, AVIF" },
   { slug: "circle-crop", cat: "edit", mode: "local", tags: ["image"], name: "Circle crop", blurb: "Crop a photo into a round avatar with a transparent background.", meta: "Transparent PNG" },
