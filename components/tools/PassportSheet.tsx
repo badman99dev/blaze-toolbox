@@ -6,7 +6,8 @@ import "cropperjs/dist/cropper.css";
 import s from "./passport.module.css";
 
 type Item = { id: number; src: string; bg: string | null; w: number; h: number; n: number };
-type Pend = { orig: string; crop: string | null; ar: number; name: string; alpha: boolean; bg: string };
+type Pend = { orig: string; crop: string | null; ar: number; name: string; size: number; alpha: boolean; bg: string };
+const sizeText = (n: number) => (n > 1048576 ? (n / 1048576).toFixed(2) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
 type Rect = { it: Item; rot: boolean; w: number; h: number; x: number; y: number; key?: string };
 type Cell = { x: number; y: number; w: number; h: number; rot: boolean };
 type Page = Rect[];
@@ -564,7 +565,7 @@ export function PassportSheet() {
     const orig = URL.createObjectURL(f);
     let alpha = false;
     if (/^image\/(png|webp|gif|avif)/.test(f.type)) { try { alpha = await hasAlpha(orig); } catch { /* ignore */ } }
-    updatePend({ orig, crop: null, ar: 0, name: f.name, alpha, bg: storeRef.current.bg });
+    updatePend({ orig, crop: null, ar: 0, name: f.name, size: f.size, alpha, bg: storeRef.current.bg });
     setCropOpen(true);
   };
 
@@ -808,7 +809,7 @@ export function PassportSheet() {
             <div className={s.pend + " " + s.pendOn}>
               <img src={pend.crop || pend.orig} alt="" style={{ background: pend.alpha && !pend.crop ? pend.bg : undefined }} />
               <div>
-                <div>{pend.name}</div>
+                <div>{pend.name} <span className={s.muted}>{sizeText(pend.size)}</span></div>
                 <div className={s.muted}>{pendNote}</div>
               </div>
             </div>

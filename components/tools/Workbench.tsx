@@ -303,7 +303,7 @@ async function renderPage(doc: Awaited<ReturnType<typeof openPdf>>, n: number, s
 
 const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: string }> = {
   "image-compress": { accept: "image/*", multi: true, hint: "JPG, PNG or WebP. Pick several, then add more below.", cta: "Compress" },
-  "image-target-size": { accept: "image/*", multi: true, hint: "Pick photos to shrink to your target size. Add more below.", cta: "Compress to target" },
+  "image-target-size": { accept: "image/*", multi: false, hint: "Pick a photo to shrink to your target size.", cta: "Compress to target" },
   "image-convert": { accept: "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp", multi: true, hint: "Pick images to convert, then add more below.", cta: "Convert" },
   "heic-to-jpg": { accept: ".heic,.heif,image/heic,image/heif", multi: true, hint: "iPhone HEIC or HEIF photos. Pick several, then add more below.", cta: "Convert" },
   "svg-to-png": { accept: ".svg,image/svg+xml", multi: true, hint: "One or more SVG files; add more below.", cta: "Rasterize" },
@@ -724,7 +724,11 @@ export function Workbench({ slug }: { slug: string }) {
     <div className="wb">
       <div className="wb-in">
       <label className="drop">
-        <strong>{files.length ? (cfg.multi ? `${files.length} file${files.length === 1 ? "" : "s"} ready` : files[0].name) : "Choose a file"}</strong>
+        <strong>{files.length
+          ? cfg.multi
+            ? <>{files.length} file{files.length === 1 ? "" : "s"} ready <span className="fsz">{kb(files.reduce((n, f) => n + f.size, 0))}</span></>
+            : <>{files[0].name} <span className="fsz">{kb(files[0].size)}</span></>
+          : "Choose a file"}</strong>
         <span>{files.length ? (cfg.multi ? "Choose again to add more." : "Choose again to replace.") : `${cfg.hint} Or drop it here.`}</span>
         <input type="file" accept={cfg.accept} multiple={cfg.multi} onChange={(e) => {
           const list = Array.from(e.target.files || []);
@@ -739,6 +743,7 @@ export function Workbench({ slug }: { slug: string }) {
           {files.map((f, i) => (
             <li key={`${f.name}|${f.size}|${f.lastModified}`}>
               <span className="nm" title={f.name}>{f.name}</span>
+              <span className="fsz">{kb(f.size)}</span>
               {orderMatters && <>
                 <button type="button" className="mv" onClick={() => moveAt(i, -1)} disabled={i === 0} aria-label="Move up">▲</button>
                 <button type="button" className="mv" onClick={() => moveAt(i, 1)} disabled={i === files.length - 1} aria-label="Move down">▼</button>

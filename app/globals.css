@@ -147,6 +147,7 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .opts .pair>*{flex:1 1 auto;min-width:0}
 .opts .pair>select{flex:0 0 5rem}
 .picks{display:grid;gap:.375rem;margin:0;padding:0;list-style:none;max-height:15rem;overflow:auto}
+.fsz{flex:none;font-size:.75rem;color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap}
 .picks li{display:flex;align-items:center;gap:.375rem;min-width:0;padding:.25rem .375rem .25rem .75rem;background:#fff;border:1px solid var(--line);border-radius:.5rem}
 .picks .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-small)}
 .picks button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:2.25rem;height:2.25rem;font-size:.75rem;color:var(--muted);background:#fff;border:1px solid var(--edge);border-radius:.375rem;cursor:pointer}

@@ -23,6 +23,7 @@ export function ImageResize() {
   const urls = useRef<string[]>([]);
 
   const [name, setName] = useState("");
+  const [size, setSize] = useState(0);
   const [src, setSrc] = useState("");
   const [ratioId, setRatioId] = useState("free");
   const [w, setW] = useState("");
@@ -79,11 +80,12 @@ export function ImageResize() {
 
   function pick(file: File | null) {
     setOut([]); setErr(""); setCropInfo("");
-    if (!file) { setSrc(""); setName(""); return; }
+    if (!file) { setSrc(""); setName(""); setSize(0); return; }
     urls.current.forEach(URL.revokeObjectURL); urls.current = [];
     const url = URL.createObjectURL(file);
     urls.current.push(url);
     setName(file.name);
+    setSize(file.size);
     setFmt(file.type === "image/png" || file.type === "image/gif" ? "image/png" : "image/jpeg");
     setSrc(url);
   }
@@ -149,7 +151,7 @@ export function ImageResize() {
     <div className="wb">
       <div className="wb-in">
         <label className="drop">
-          <b>{name || "Choose an image"}</b>
+          <b>{name ? <>{name} <span className="fsz">{kb(size)}</span></> : "Choose an image"}</b>
           <span>{name ? "Click to pick a different image" : "JPG, PNG or WebP. One image at a time."}</span>
           <input type="file" accept="image/*" onChange={(e) => pick(e.target.files?.[0] || null)} />
         </label>
