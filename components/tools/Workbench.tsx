@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { getSumi } from "@/lib/sumi";
+import { fetchProgress, downloadParts, loadLib } from "@/lib/loadlog";
 
 type Out = { name: string; url: string; note: string };
 const kb = (n: number) => (n > 1048576 ? (n / 1048576).toFixed(2) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
@@ -218,9 +219,11 @@ let qpdfReady: Promise<Qpdf> | null = null;
 async function getQpdf(): Promise<Qpdf> {
   if (!qpdfReady) {
     qpdfReady = (async () => {
-      const mod: any = await import("@neslinesli93/qpdf-wasm");
+      const mod: any = await loadLib("qpdf", "PDF engine (qpdf)", () => import("@neslinesli93/qpdf-wasm"));
       const create = mod.default ?? mod;
-      return (await create({ locateFile: () => "/qpdf/qpdf.wasm" })) as Qpdf;
+      const wasm = await fetchProgress("/qpdf/qpdf.wasm", "PDF engine (qpdf.wasm, 1.3 MB)");
+      const wasmURL = URL.createObjectURL(new Blob([wasm as unknown as BlobPart], { type: "application/wasm" }));
+      return (await create({ locateFile: (p: string) => (p.endsWith(".wasm") ? wasmURL : p) })) as Qpdf;
     })().catch((e) => { qpdfReady = null; throw e; });
   }
   return qpdfReady;
@@ -319,7 +322,7 @@ function decodeJpeg(bytes: Uint8Array) {
   });
 }
 async function collectPdfPhotos(bytes: Uint8Array) {
-  const { PDFDocument, PDFName, PDFRawStream } = await import("pdf-lib");
+  const { PDFDocument, PDFName, PDFRawStream } = await loadLib("pdf-lib", "PDF library (pdf-lib)", () => import("pdf-lib"));
   const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
   const photos: PdfPhoto[] = [];
   for (const [ref, obj] of doc.context.enumerateIndirectObjects()) {
@@ -352,7 +355,7 @@ async function encodePdfPhotos(photos: PdfPhoto[], quality: number, maxDim: numb
 }
 async function applyPdfPhotos(bytes: Uint8Array, encoded: Map<string, { bytes: Uint8Array; w: number; h: number }>) {
   if (!encoded.size) return null;
-  const { PDFDocument, PDFName, PDFNumber, PDFDict, PDFRawStream } = await import("pdf-lib");
+  const { PDFDocument, PDFName, PDFNumber, PDFDict, PDFRawStream } = await loadLib("pdf-lib", "PDF library (pdf-lib)", () => import("pdf-lib"));
   const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
   const ctx = doc.context;
   let changed = 0;
@@ -445,7 +448,7 @@ function wavBlob(buf: AudioBuffer) {
   return new Blob([ab], { type: "audio/wav" });
 }
 async function mp3Blob(buf: AudioBuffer, kbps: number, onProg: (p: number) => void) {
-  const { Mp3Encoder } = await import("@breezystack/lamejs");
+  const { Mp3Encoder } = await loadLib("lamejs", "MP3 encoder (lamejs)", () => import("@breezystack/lamejs"));
   const ch = Math.min(2, buf.numberOfChannels) || 1;
   const enc = new Mp3Encoder(ch, buf.sampleRate, kbps);
   const l = buf.getChannelData(0), r = ch > 1 ? buf.getChannelData(1) : null;
@@ -472,14 +475,14 @@ let ffProg: (p: number) => void = () => {};
 async function getFfmpeg() {
   if (!ffmpegPromise) {
     ffmpegPromise = (async () => {
-      const { FFmpeg } = await import("@ffmpeg/ffmpeg");
-      const { toBlobURL } = await import("@ffmpeg/util");
+      const { FFmpeg } = await loadLib("ffmpeg", "Audio engine (ffmpeg.wasm)", () => import("@ffmpeg/ffmpeg"));
       const base = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
+      const [core, wasm] = await downloadParts("Audio engine (ffmpeg.wasm, ~31 MB, one time)", [`${base}/ffmpeg-core.js`, `${base}/ffmpeg-core.wasm`]);
       const ff = new FFmpeg();
       ff.on("progress", ({ progress }) => { if (Number.isFinite(progress)) ffProg(Math.max(0, Math.min(1, progress))); });
       await ff.load({
-        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+        coreURL: URL.createObjectURL(new Blob([core as unknown as BlobPart], { type: "text/javascript" })),
+        wasmURL: URL.createObjectURL(new Blob([wasm as unknown as BlobPart], { type: "application/wasm" })),
       });
       return ff;
     })();
@@ -489,7 +492,7 @@ async function getFfmpeg() {
 }
 async function ffmpegExtract(file: File, fmt: string, kbps: number, onProg: (p: number) => void) {
   const ff = await getFfmpeg();
-  const { fetchFile } = await import("@ffmpeg/util");
+  const { fetchFile } = await loadLib("ffmpeg-util", "Audio engine (ffmpeg helper)", () => import("@ffmpeg/util"));
   ffProg = onProg;
   const input = "in_" + (file.name.replace(/[^\w.-]/g, "_") || "input");
   const output = "out." + FF_EXT[fmt];
@@ -520,7 +523,7 @@ function buildIco(images: { size: number; bytes: Uint8Array }[]) {
   return out;
 }
 async function openPdf(file: File) {
-  const pdfjs = await import("pdfjs-dist");
+  const pdfjs = await loadLib("pdfjs", "PDF reader (pdf.js)", () => import("pdfjs-dist"));
   pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
   return pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
 }
@@ -695,7 +698,7 @@ export function Workbench({ slug }: { slug: string }) {
           res.push({ name: `${base(f.name)}-converted.${EXT[fmt]}`, url: keep(blob), note: `${EXT[fmt].toUpperCase()}, ${c.width} × ${c.height} px, ${kb(blob.size)}` });
         }
       } else if (slug === "heic-to-jpg") {
-        const heicMod = await import("heic2any");
+        const heicMod = await loadLib("heic2any", "HEIC decoder (heic2any)", () => import("heic2any"));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const heic2any: any = (heicMod as any).default ?? heicMod;
         for (const f of files) {
@@ -740,7 +743,7 @@ export function Workbench({ slug }: { slug: string }) {
             pngs.push({ size: s, bytes: new Uint8Array(await blob.arrayBuffer()) });
           }
           const ico = buildIco(pngs.filter((p) => p.size <= 48));
-          const jsZipMod = await import("jszip");
+          const jsZipMod = await loadLib("jszip", "ZIP writer (JSZip)", () => import("jszip"));
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const JSZip: any = (jsZipMod as any).default ?? jsZipMod;
           const zip = new JSZip();
@@ -809,7 +812,7 @@ export function Workbench({ slug }: { slug: string }) {
           res.push({ name: `${base(files[0].name)}-page-${i}.${EXT[fmt]}`, url: keep(blob), note: kb(blob.size) });
         }
       } else if (slug === "image-to-pdf") {
-        const { PDFDocument } = await import("pdf-lib");
+        const { PDFDocument } = await loadLib("pdf-lib", "PDF library (pdf-lib)", () => import("pdf-lib"));
         const pdf = await PDFDocument.create();
         for (let i = 0; i < files.length; i++) {
           setStatus(`Image ${i + 1} of ${files.length}`);
@@ -840,7 +843,7 @@ export function Workbench({ slug }: { slug: string }) {
         });
       } else if (slug === "pdf-merge") {
         if (files.length < 2) throw new Error("Pick at least two PDFs to merge.");
-        const { PDFDocument } = await import("pdf-lib");
+        const { PDFDocument } = await loadLib("pdf-lib", "PDF library (pdf-lib)", () => import("pdf-lib"));
         const merged = await PDFDocument.create();
         for (let i = 0; i < files.length; i++) {
           setStatus(`Adding ${files[i].name}`);
@@ -851,7 +854,7 @@ export function Workbench({ slug }: { slug: string }) {
         const blob = new Blob([(await merged.save()) as unknown as BlobPart], { type: "application/pdf" });
         res.push({ name: "merged.pdf", url: keep(blob), note: `${files.length} files, ${merged.getPageCount()} pages, ${kb(blob.size)}` });
       } else if (slug === "pdf-split") {
-        const { PDFDocument } = await import("pdf-lib");
+        const { PDFDocument } = await loadLib("pdf-lib", "PDF library (pdf-lib)", () => import("pdf-lib"));
         const src = await PDFDocument.load(await files[0].arrayBuffer());
         const total = src.getPageCount();
         if (perPage) {
@@ -873,7 +876,7 @@ export function Workbench({ slug }: { slug: string }) {
           res.push({ name: `${base(files[0].name)}-pages.pdf`, url: keep(blob), note: `${sel.length} of ${total} pages, ${kb(blob.size)}` });
         }
       } else if (slug === "pdf-rotate") {
-        const { PDFDocument, degrees } = await import("pdf-lib");
+        const { PDFDocument, degrees } = await loadLib("pdf-lib", "PDF library (pdf-lib)", () => import("pdf-lib"));
         const src = await PDFDocument.load(await files[0].arrayBuffer());
         const total = src.getPageCount();
         const sel = range.trim() ? parsePages(range, total) : Array.from({ length: total }, (_, i) => i + 1);
@@ -952,7 +955,7 @@ export function Workbench({ slug }: { slug: string }) {
         const blob = new Blob([out as unknown as BlobPart], { type: "application/pdf" });
         res.push({ name: `${base(files[0].name)}-locked.pdf`, url: keep(blob), note: `Password-protected, ${kb(blob.size)}` });
       } else if (slug === "pdf-page-numbers") {
-        const { PDFDocument, StandardFonts, rgb, degrees } = await import("pdf-lib");
+        const { PDFDocument, StandardFonts, rgb, degrees } = await loadLib("pdf-lib", "PDF library (pdf-lib)", () => import("pdf-lib"));
         const F = StandardFonts;
         const fontName = pnFont === "serif"
           ? (pnBold && pnItalic ? F.TimesRomanBoldItalic : pnBold ? F.TimesRomanBold : pnItalic ? F.TimesRomanItalic : F.TimesRoman)
