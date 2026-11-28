@@ -23,6 +23,7 @@ const P: Record<string, React.ReactNode> = {
   "video-to-audio": <><rect x="3.5" y="7" width="14" height="18" rx="2" /><path d="M8 13l4 3-4 3z" /><path d="M22 21.5V9l6 1.7" /><circle cx="19.6" cy="21.5" r="2.6" /></>,
   "audio-to-video": <><path d="M3.5 16V13M7 16v-5M10.5 16V10M14 16v-7" /><rect x="18" y="9" width="10" height="14" rx="2" /><path d="M22 13.5l4 2.5-4 2.5z" /></>,
   "trim-media": <><circle cx="8" cy="24" r="3.2" /><circle cx="8" cy="8" r="3.2" /><path d="M10.5 10.2L25 22M10.5 21.8 25 10" /></>,
+  "file-hash": <><path d="M7 4h11l7 7v17H7z" /><path d="M18 4v7h7" /><path d="M14 15.5l-1.5 7M20 15.5l-1.5 7M11.5 18.5h10M11 21h10" /></>,
 };
 export function Icon({ slug }: { slug: string }) {
   return (

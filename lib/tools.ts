@@ -1,6 +1,6 @@
 export type Category = "everyday" | "edit" | "dev";
 export type Mode = "local" | "cloud" | "hybrid";
-export type MediaTag = "image" | "pdf" | "video" | "audio" | "text";
+export type MediaTag = "image" | "pdf" | "video" | "audio" | "text" | "file";
 export type Tool = { slug: string; name: string; blurb: string; meta: string; cat: Category; mode: Mode; tags: MediaTag[] };
 
 export const TAGS: { id: MediaTag; label: string }[] = [
@@ -9,6 +9,7 @@ export const TAGS: { id: MediaTag; label: string }[] = [
   { id: "video", label: "Video" },
   { id: "audio", label: "Audio" },
   { id: "text", label: "Text" },
+  { id: "file", label: "Any file" },
 ];
 
 export const MODES: Record<Mode, { label: string; title: string }> = {
@@ -62,4 +63,5 @@ export const TOOLS: Tool[] = [
   { slug: "svg-to-png", cat: "dev", mode: "local", tags: ["image"], name: "SVG to PNG", blurb: "Rasterize an SVG to a crisp PNG at the exact pixel size you need.", meta: "Any size" },
   { slug: "favicon-generator", cat: "dev", mode: "local", tags: ["image"], name: "Favicon and app icons", blurb: "Make a full icon pack, PNG sizes plus .ico, from a single image.", meta: "ICO + PNG pack" },
   { slug: "image-to-base64", cat: "dev", mode: "local", tags: ["image", "text"], name: "Image to Base64", blurb: "Turn an image into a data URI ready for HTML, CSS or JSON.", meta: "Data URI" },
+  { slug: "file-hash", cat: "dev", mode: "local", tags: ["file"], name: "File hash & compare", blurb: "See the MD5, SHA-1, SHA-256 and SHA-512 of any file — and check whether two files are exactly the same.", meta: "MD5, SHA-1, SHA-256, SHA-512" },
 ];
