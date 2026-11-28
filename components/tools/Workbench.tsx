@@ -59,6 +59,76 @@ async function shrinkToTarget(b: ImageBitmap, type: string, target: number): Pro
   }
   return fallback!;
 }
+
+// Reach a *minimum* size: pad a file with invisible metadata so it hits the
+// target without touching a single pixel. JPEG gets empty comment (COM)
+// segments before the scan, PNG gets one ancillary chunk before IEND, and
+// other formats (incl. WebP) get trailing bytes — all ignored by decoders.
+function crc32(buf: Uint8Array): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    c ^= buf[i];
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+function jpegScanStart(b: Uint8Array): number {
+  let i = 2;
+  while (i < b.length - 1) {
+    if (b[i] !== 0xff) { i++; continue; }
+    const m = b[i + 1];
+    if (m === 0xff) { i++; continue; }
+    if (m === 0xda) return i;
+    if (m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+    i += 2 + ((b[i + 2] << 8) | b[i + 3]);
+  }
+  return 2;
+}
+function padToTarget(bytes: Uint8Array, target: number): Uint8Array {
+  const need = target - bytes.length;
+  if (need <= 0) return bytes;
+  const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
+  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  if (isJpeg) {
+    const at = jpegScanStart(bytes);
+    const parts: Uint8Array[] = [];
+    let rem = need;
+    while (rem > 0) {
+      const payload = Math.min(65533, rem - 4);
+      const size = (payload > 0 ? payload : 0) + 4;
+      const seg = new Uint8Array(size);
+      seg[0] = 0xff; seg[1] = 0xfe;
+      seg[2] = ((size - 2) >> 8) & 0xff; seg[3] = (size - 2) & 0xff;
+      parts.push(seg);
+      rem -= size;
+      if (payload <= 0) break;
+    }
+    const add = parts.reduce((n, p) => n + p.length, 0);
+    const out = new Uint8Array(bytes.length + add);
+    out.set(bytes.subarray(0, at), 0);
+    let o = at;
+    for (const p of parts) { out.set(p, o); o += p.length; }
+    out.set(bytes.subarray(at), o);
+    return out;
+  }
+  if (isPng && bytes.length > 12) {
+    const dataLen = Math.max(0, need - 12);
+    const chunk = new Uint8Array(12 + dataLen);
+    const dv = new DataView(chunk.buffer);
+    dv.setUint32(0, dataLen);
+    chunk[4] = 0x62; chunk[5] = 0x6c; chunk[6] = 0x61; chunk[7] = 0x7a; // "blaz" (ancillary)
+    dv.setUint32(8 + dataLen, crc32(chunk.subarray(4, 8 + dataLen)));
+    const at = bytes.length - 12;
+    const out = new Uint8Array(bytes.length + chunk.length);
+    out.set(bytes.subarray(0, at), 0);
+    out.set(chunk, at);
+    out.set(bytes.subarray(at), at + chunk.length);
+    return out;
+  }
+  const out = new Uint8Array(target);
+  out.set(bytes, 0);
+  return out;
+}
 function canvas(w: number, h: number, fill?: string) {
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
@@ -253,6 +323,7 @@ export function Workbench({ slug }: { slug: string }) {
   const [q, setQ] = useState(70);
   const [target, setTarget] = useState("200");
   const [targetUnit, setTargetUnit] = useState("KB");
+  const [pad, setPad] = useState(false);
   const [scale, setScale] = useState(2);
   const [scan, setScan] = useState(true);
   const [svgW, setSvgW] = useState("512");
@@ -335,9 +406,26 @@ export function Workbench({ slug }: { slug: string }) {
         const unit = targetUnit === "MB" ? 1048576 : 1024;
         const want = Math.max(1024, Math.round((parseFloat(target) || 200) * unit));
         for (const f of files) {
+          if (f.size <= want) {
+            if (pad) {
+              setStatus(`Padding ${f.name}`);
+              const bytes = new Uint8Array(await f.arrayBuffer());
+              const padded = padToTarget(bytes, want);
+              const ext = (f.name.match(/\.[a-z0-9]+$/i) || [""])[0].toLowerCase();
+              res.push({ name: `${base(f.name)}-${target}${targetUnit.toLowerCase()}${ext}`, url: keep(new Blob([padded as unknown as BlobPart], { type: f.type || "application/octet-stream" })), note: `Padded ${kb(f.size)} to ${kb(padded.length)} — picture unchanged, no quality lost` });
+            } else {
+              setStatus(`Checking ${f.name}`);
+              res.push({ name: f.name, url: keep(f), note: `Already ${kb(f.size)} — under your ${kb(want)} target, left untouched` });
+            }
+            continue;
+          }
           setStatus(`Fitting ${f.name} to ${kb(want)}`);
           const b = await createImageBitmap(f);
           const r = await shrinkToTarget(b, type, want);
+          if (r.blob.size >= f.size) {
+            res.push({ name: f.name, url: keep(f), note: `Already the smallest at ${kb(f.size)} — left untouched` });
+            continue;
+          }
           const dim = r.width !== b.width ? `, ${r.width} × ${r.height} px` : "";
           const note = r.met
             ? `Fits ${kb(want)}: ${kb(f.size)} to ${kb(r.blob.size)} at quality ${r.quality}%${dim}`
@@ -672,7 +760,8 @@ export function Workbench({ slug }: { slug: string }) {
               <option value="image/webp">WebP</option>
             </select>
           </label>
-          <p className="hint">Quality, and if needed the pixel size, drop automatically until the file fits your target. Great for upload limits and forms — like “under 200 KB”. WebP gets a bit smaller than JPG.</p>
+          <p className="hint">Quality, and if needed the pixel size, drop automatically until the file fits your target. Great for upload limits and forms — like “under 200 KB”. A photo that is already smaller than the target is left untouched, so a file never gets bigger. WebP gets a bit smaller than JPG.</p>
+          <label className="check"><input type="checkbox" checked={pad} onChange={(e) => setPad(e.target.checked)} />Reach the target exactly<small>If a photo is already under the target, add invisible metadata so it grows to the target. The picture is not changed and no quality is lost — handy when a form needs a minimum size.</small></label>
         </>}
         {slug === "image-convert" && <>
           {imgFmt(true)}
