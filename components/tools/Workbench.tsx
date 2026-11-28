@@ -291,6 +291,111 @@ async function compressPdf(bytes: Uint8Array) {
   }
   return out;
 }
+// "Compress" additionally re-encodes the JPEG photos *inside* the PDF. It only
+// swaps the image streams: content streams, fonts, text and vectors are copied
+// through untouched, so the words stay selectable — pages are never turned into
+// images. Photos the browser cannot decode (CMYK, exotic JPEGs) are left alone.
+type PdfPhoto = { key: string; bytes: Uint8Array; w: number; h: number; el: HTMLImageElement | null };
+const PDF_Q_MIN = 0.2;
+const PDF_MAX_PHOTOS = 200;
+const PDF_TARGET_MIN = 1024;            // 1 KB
+const PDF_TARGET_MAX = 100 * 1048576;   // 100 MB
+function clampPdfTarget(v: string, u: string) {
+  const unit = unitBytes(u);
+  const n = parseFloat(v);
+  const min = PDF_TARGET_MIN / unit, max = PDF_TARGET_MAX / unit;
+  const c = Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
+  return String(Math.round(c * 1000) / 1000);
+}
+const asName = (o: unknown) => (o && typeof (o as { asString?: () => string }).asString === "function" ? (o as { asString: () => string }).asString() : "");
+const asNum = (o: unknown) => (o && typeof (o as { asNumber?: () => number }).asNumber === "function" ? (o as { asNumber: () => number }).asNumber() : 0);
+function decodeJpeg(bytes: Uint8Array) {
+  return new Promise<HTMLImageElement | null>((res) => {
+    const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type: "image/jpeg" }));
+    const el = new Image();
+    el.onload = () => { URL.revokeObjectURL(url); res(el); };
+    el.onerror = () => { URL.revokeObjectURL(url); res(null); };
+    el.src = url;
+  });
+}
+async function collectPdfPhotos(bytes: Uint8Array) {
+  const { PDFDocument, PDFName, PDFRawStream } = await import("pdf-lib");
+  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+  const photos: PdfPhoto[] = [];
+  for (const [ref, obj] of doc.context.enumerateIndirectObjects()) {
+    if (!(obj instanceof PDFRawStream)) continue;
+    const d = obj.dict;
+    if (asName(d.get(PDFName.of("Subtype"))) !== "/Image") continue;
+    if (asName(d.get(PDFName.of("Filter"))) !== "/DCTDecode") continue;
+    if (d.get(PDFName.of("SMask")) || d.get(PDFName.of("Mask"))) continue;
+    const w = asNum(d.get(PDFName.of("Width"))), h = asNum(d.get(PDFName.of("Height")));
+    if (!w || !h || obj.contents.length < 2048) continue;
+    photos.push({ key: ref.toString(), bytes: obj.contents, w, h, el: null });
+    if (photos.length >= PDF_MAX_PHOTOS) break;
+  }
+  for (const p of photos) p.el = await decodeJpeg(p.bytes);
+  return photos;
+}
+async function encodePdfPhotos(photos: PdfPhoto[], quality: number, maxDim: number) {
+  const out = new Map<string, { bytes: Uint8Array; w: number; h: number }>();
+  for (const p of photos) {
+    const el = p.el;
+    if (!el) continue;
+    let w = el.naturalWidth || p.w, h = el.naturalHeight || p.h;
+    if (maxDim && Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.max(1, Math.round(w * s)); h = Math.max(1, Math.round(h * s)); }
+    let blob: Blob;
+    try { blob = await toBlob(drawFrom(el, w, h, "#ffffff"), "image/jpeg", quality); } catch { continue; }
+    const nb = new Uint8Array(await blob.arrayBuffer());
+    if (nb.length && nb.length < p.bytes.length) out.set(p.key, { bytes: nb, w, h });
+  }
+  return out;
+}
+async function applyPdfPhotos(bytes: Uint8Array, encoded: Map<string, { bytes: Uint8Array; w: number; h: number }>) {
+  if (!encoded.size) return null;
+  const { PDFDocument, PDFName, PDFNumber, PDFDict, PDFRawStream } = await import("pdf-lib");
+  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+  const ctx = doc.context;
+  let changed = 0;
+  for (const [ref, obj] of ctx.enumerateIndirectObjects()) {
+    if (!(obj instanceof PDFRawStream)) continue;
+    const d = obj.dict;
+    if (asName(d.get(PDFName.of("Subtype"))) !== "/Image") continue;
+    if (asName(d.get(PDFName.of("Filter"))) !== "/DCTDecode") continue;
+    const enc = encoded.get(ref.toString());
+    if (!enc) continue;
+    const nd = PDFDict.withContext(ctx);
+    nd.set(PDFName.of("Type"), PDFName.of("XObject"));
+    nd.set(PDFName.of("Subtype"), PDFName.of("Image"));
+    nd.set(PDFName.of("Width"), PDFNumber.of(enc.w));
+    nd.set(PDFName.of("Height"), PDFNumber.of(enc.h));
+    nd.set(PDFName.of("ColorSpace"), PDFName.of("DeviceRGB"));
+    nd.set(PDFName.of("BitsPerComponent"), PDFNumber.of(8));
+    nd.set(PDFName.of("Filter"), PDFName.of("DCTDecode"));
+    ctx.assign(ref, PDFRawStream.of(nd, new Uint8Array(enc.bytes)));
+    changed++;
+  }
+  if (!changed) return null;
+  return new Uint8Array(await doc.save({ useObjectStreams: true }));
+}
+async function reencodePdf(baseBytes: Uint8Array, photos: PdfPhoto[], quality: number, maxDim: number) {
+  const replaced = await applyPdfPhotos(baseBytes, await encodePdfPhotos(photos, quality, maxDim));
+  return compressPdf(replaced ?? baseBytes);
+}
+async function pdfToTarget(baseBytes: Uint8Array, photos: PdfPhoto[], target: number) {
+  let best = await compressPdf(baseBytes);
+  if (best.length <= target) return { out: best, note: "fits once the structure is repacked" };
+  if (!photos.some((p) => p.el)) return { out: best, note: "no embedded photos to shrink" };
+  const dims = [0, 1400, 900, 550];
+  const qs = [0.8, 0.68, 0.56, 0.45, 0.35];
+  for (const dim of dims) {
+    for (const q of qs) {
+      const out = await reencodePdf(baseBytes, photos, q, dim);
+      if (out.length < best.length) best = out;
+      if (out.length <= target) return { out, note: `hit your ${kb(target)} target` };
+    }
+  }
+  return { out: best, note: `closest we could get to ${kb(target)}` };
+}
 function buildIco(images: { size: number; bytes: Uint8Array }[]) {
   const header = 6 + 16 * images.length;
   const total = header + images.reduce((s, i) => s + i.bytes.length, 0);
@@ -357,6 +462,11 @@ export function Workbench({ slug }: { slug: string }) {
   const [target, setTarget] = useState("200");
   const [targetUnit, setTargetUnit] = useState("KB");
   const [pad, setPad] = useState(false);
+  const [pcMode, setPcMode] = useState<"optimize" | "compress">("optimize");
+  const [pcBy, setPcBy] = useState<"quality" | "target">("quality");
+  const [pcQ, setPcQ] = useState(60);
+  const [pcTarget, setPcTarget] = useState("2");
+  const [pcTargetUnit, setPcTargetUnit] = useState("MB");
   const [scale, setScale] = useState(2);
   const [scan, setScan] = useState(true);
   const [svgW, setSvgW] = useState("512");
@@ -664,16 +774,37 @@ export function Workbench({ slug }: { slug: string }) {
         const blob = new Blob([(await src.save()) as unknown as BlobPart], { type: "application/pdf" });
         res.push({ name: `${base(files[0].name)}-rotated.pdf`, url: keep(blob), note: `${sel.length} page(s) turned ${add}°, ${kb(blob.size)}` });
       } else if (slug === "pdf-compress") {
-        setStatus("Compressing");
         const f = files[0];
         const bytes = new Uint8Array(await f.arrayBuffer());
-        const out = await compressPdf(bytes);
+        let out: Uint8Array;
+        let note: string;
+        if (pcMode === "optimize") {
+          setStatus("Optimizing (lossless)");
+          out = await compressPdf(bytes);
+          note = "structure repacked, text and vectors kept";
+        } else {
+          setStatus("Reading photos");
+          const photos = await collectPdfPhotos(bytes);
+          const found = photos.filter((p) => p.el).length;
+          if (pcBy === "target") {
+            const unit = unitBytes(pcTargetUnit);
+            const raw = parseFloat(pcTarget);
+            const want = Math.min(PDF_TARGET_MAX, Math.max(PDF_TARGET_MIN, Math.round((Number.isFinite(raw) ? raw : 1) * unit)));
+            setStatus(`Compressing to ${kb(want)}`);
+            const r = await pdfToTarget(bytes, photos, want);
+            out = r.out; note = `${r.note} (${found} of ${photos.length} photos re-encoded)`;
+          } else {
+            setStatus(`Re-encoding photos at ${pcQ}%`);
+            out = await reencodePdf(bytes, photos, pcQ / 100, 0);
+            note = found ? `${found} photo${found === 1 ? "" : "s"} re-encoded at ${pcQ}%, text kept` : "no embedded photos found, only the structure was repacked";
+          }
+        }
         if (out.length >= f.size) {
           res.push({ name: f.name, url: keep(f), note: `Already well optimized at ${kb(f.size)} — left untouched` });
         } else {
           const blob = new Blob([out as unknown as BlobPart], { type: "application/pdf" });
           const pct = Math.round((1 - out.length / f.size) * 100);
-          res.push({ name: `${base(f.name)}-compressed.pdf`, url: keep(blob), note: `${kb(f.size)} to ${kb(out.length)} (-${pct}%), text and vectors kept` });
+          res.push({ name: `${base(f.name)}-compressed.pdf`, url: keep(blob), note: `${kb(f.size)} to ${kb(out.length)} (-${pct}%), ${note}` });
         }
       } else if (slug === "pdf-unlock") {
         setStatus("Removing protection");
@@ -907,7 +1038,46 @@ export function Workbench({ slug }: { slug: string }) {
           <label>Pages<input type="text" value={range} onChange={(e) => setRange(e.target.value)} placeholder="all" /></label>
           <p className="hint">Leave Pages empty to rotate every page.</p>
         </>}
-        {slug === "pdf-compress" && <p className="hint">Removes duplicate objects and packs the file structure more tightly, so the same pages take less space. <b>Text stays selectable and pages are never turned into images.</b> A PDF that is already well optimized may barely change. Scanned PDFs (photos inside the file) shrink only a little — this does not blur their pictures.</p>}
+        {slug === "pdf-compress" && <>
+          <label>Mode
+            <select value={pcMode} onChange={(e) => setPcMode(e.target.value as "optimize" | "compress")}>
+              <option value="optimize">Optimize only — lossless</option>
+              <option value="compress">Compress — shrink photos too</option>
+            </select>
+          </label>
+          {pcMode === "compress" && <>
+            <label>Shrink by
+              <select value={pcBy} onChange={(e) => setPcBy(e.target.value as "quality" | "target")}>
+                <option value="quality">Quality</option>
+                <option value="target">Target file size</option>
+              </select>
+            </label>
+            {pcBy === "quality" && (
+              <label>Photo quality: {pcQ}%<input type="range" min="20" max="90" value={pcQ} onChange={(e) => setPcQ(+e.target.value)} /></label>
+            )}
+            {pcBy === "target" && (
+              <label>Target size
+                <span className="pair">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={pcTargetUnit === "MB" ? "0.001" : "1"}
+                    max={pcTargetUnit === "MB" ? "100" : "102400"}
+                    step={pcTargetUnit === "MB" ? "any" : "1"}
+                    value={pcTarget}
+                    onChange={(e) => setPcTarget(e.target.value)}
+                    onBlur={(e) => setPcTarget(clampPdfTarget(e.target.value, pcTargetUnit))}
+                  />
+                  <select value={pcTargetUnit} onChange={(e) => { const u = e.target.value; setPcTargetUnit(u); setPcTarget((t) => clampPdfTarget(t, u)); }}>
+                    <option value="KB">KB</option>
+                    <option value="MB">MB</option>
+                  </select>
+                </span>
+              </label>
+            )}
+          </>}
+          <p className="hint"><b>Optimize only</b> repacks the file structure — lossless, text stays selectable, nothing is blurred. <b>Compress</b> also re-encodes the photos inside the PDF at the quality or target size you pick while keeping text, fonts and vectors. Pages are never turned into images, so words stay selectable either way. A PDF that is already well optimized may barely change, and scanned photos that are already small cannot shrink much further.</p>
+        </>}
         {slug === "pdf-unlock" && <>
           <label>Password<input type="password" value={pdfPw} onChange={(e) => setPdfPw(e.target.value)} placeholder="Only if it asks for one" autoComplete="off" /></label>
           <p className="hint">Use this for PDFs you own or are allowed to unlock. The file and password never leave your device. A PDF that cannot be opened without its password cannot be unlocked without it.</p>
