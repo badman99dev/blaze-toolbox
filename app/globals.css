@@ -88,7 +88,8 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .tool-cats{display:flex;flex-direction:column}
 
 .tools-region{display:flex;flex-direction:column}
-.search{position:sticky;top:4.75rem;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .875rem;margin:clamp(.5rem,2vw,1rem) 0 0;padding:.75rem 0;background:var(--bg)}
+.search{position:sticky;top:4.75rem;z-index:5;display:grid;gap:.625rem;margin:clamp(.5rem,2vw,1rem) 0 0;padding:.75rem 0;background:var(--bg)}
+.search-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .875rem}
 .search-box{position:relative;display:flex;align-items:center;gap:.5rem;flex:1;min-width:min(100%,16rem);padding:0 .75rem;background:var(--soft);border:1.5px solid var(--line);border-radius:.625rem;transition:border-color .15s,background .15s}
 .search-box:focus-within{border-color:var(--accent);background:#fff}
 .search-box svg{flex:none;color:var(--muted)}
@@ -97,6 +98,10 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .search-clear{display:inline-flex;align-items:center;justify-content:center;flex:none;width:1.75rem;height:1.75rem;font-size:.75rem;color:var(--muted);background:#fff;border:1px solid var(--edge);border-radius:.375rem;cursor:pointer}
 .search-clear:hover{border-color:var(--ink);color:var(--ink)}
 .search-count{margin:0;font-size:var(--fs-small);color:var(--muted);font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.chip{display:inline-flex;align-items:center;min-height:2.25rem;padding:.35rem .95rem;font:inherit;font-size:var(--fs-small);font-weight:600;color:var(--muted);background:#fff;border:1.5px solid var(--line);border-radius:999px;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+.chip:hover{border-color:var(--ink);color:var(--ink)}
+.chip.on{color:#fff;background:var(--accent);border-color:var(--accent)}
 .search-none{font-size:var(--fs-small);color:var(--muted);padding:1.5rem 0}
 .linkish{font:inherit;font-size:inherit;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
 .tools-section{margin-top:clamp(2.25rem,5vw,3.75rem)}
