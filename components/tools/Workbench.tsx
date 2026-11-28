@@ -181,23 +181,23 @@ async function renderPage(doc: Awaited<ReturnType<typeof openPdf>>, n: number, s
 }
 
 const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: string }> = {
-  "image-compress": { accept: "image/*", multi: true, hint: "JPG, PNG or WebP. You can pick several.", cta: "Compress" },
-  "image-convert": { accept: "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp", multi: true, hint: "Pick images to convert. You can choose several.", cta: "Convert" },
-  "heic-to-jpg": { accept: ".heic,.heif,image/heic,image/heif", multi: true, hint: "iPhone HEIC or HEIF photos. You can pick several.", cta: "Convert" },
-  "svg-to-png": { accept: ".svg,image/svg+xml", multi: true, hint: "One or more SVG files.", cta: "Rasterize" },
+  "image-compress": { accept: "image/*", multi: true, hint: "JPG, PNG or WebP. Pick several, then add more below.", cta: "Compress" },
+  "image-convert": { accept: "image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp", multi: true, hint: "Pick images to convert, then add more below.", cta: "Convert" },
+  "heic-to-jpg": { accept: ".heic,.heif,image/heic,image/heif", multi: true, hint: "iPhone HEIC or HEIF photos. Pick several, then add more below.", cta: "Convert" },
+  "svg-to-png": { accept: ".svg,image/svg+xml", multi: true, hint: "One or more SVG files; add more below.", cta: "Rasterize" },
   "favicon-generator": { accept: "image/*", multi: false, hint: "One square image works best.", cta: "Build icon pack" },
-  "circle-crop": { accept: "image/*", multi: true, hint: "Pick photos to turn into round avatars.", cta: "Crop to circle" },
-  "watermark": { accept: "image/*", multi: true, hint: "Pick photos to watermark.", cta: "Add watermark" },
-  "image-to-base64": { accept: "image/*", multi: true, hint: "Pick images to encode.", cta: "Encode" },
+  "circle-crop": { accept: "image/*", multi: true, hint: "Pick photos to turn into round avatars; add more below.", cta: "Crop to circle" },
+  "watermark": { accept: "image/*", multi: true, hint: "Pick photos to watermark; add more below.", cta: "Add watermark" },
+  "image-to-base64": { accept: "image/*", multi: true, hint: "Pick images to encode; add more below.", cta: "Encode" },
   "pdf-to-image": { accept: "application/pdf", multi: false, hint: "One PDF. Every page becomes an image.", cta: "Convert pages" },
-  "image-to-pdf": { accept: "image/*", multi: true, hint: "Pick photos in the order you want the pages.", cta: "Make PDF" },
+  "image-to-pdf": { accept: "image/*", multi: true, hint: "Pick photos in the order you want the pages. Add more or reorder below.", cta: "Make PDF" },
   "pdf-grayscale": { accept: "application/pdf", multi: false, hint: "One color PDF.", cta: "Convert to grayscale" },
-  "pdf-merge": { accept: "application/pdf", multi: true, hint: "Pick PDFs in the order to join. Choose again to replace and reorder.", cta: "Merge" },
+  "pdf-merge": { accept: "application/pdf", multi: true, hint: "Pick PDFs to join. They merge top to bottom in this order — add more or reorder below.", cta: "Merge" },
   "pdf-split": { accept: "application/pdf", multi: false, hint: "One PDF. Choose the pages to keep.", cta: "Split" },
   "pdf-rotate": { accept: "application/pdf", multi: false, hint: "One PDF.", cta: "Rotate" },
   "pdf-unlock": { accept: "application/pdf", multi: false, hint: "One PDF. Enter its password if it asks for one.", cta: "Unlock" },
   "pdf-lock": { accept: "application/pdf", multi: false, hint: "One PDF. Choose a password to open it.", cta: "Lock" },
-  "pdf-page-numbers": { accept: "application/pdf", multi: true, hint: "One or more PDFs. Pick them in the order you want the numbers to continue.", cta: "Add page numbers" },
+  "pdf-page-numbers": { accept: "application/pdf", multi: true, hint: "One or more PDFs. Numbers continue in this order — add more or reorder below.", cta: "Add page numbers" },
 };
 
 export function Workbench({ slug }: { slug: string }) {
@@ -247,6 +247,30 @@ export function Workbench({ slug }: { slug: string }) {
   const urls = useRef<string[]>([]);
 
   const keep = (blob: Blob) => { const u = URL.createObjectURL(blob); urls.current.push(u); return u; };
+  const orderMatters = slug === "pdf-merge" || slug === "image-to-pdf" || slug === "pdf-page-numbers";
+  const addFiles = (list: File[]) => {
+    setFiles((prev) => {
+      const seen = new Set(prev.map((f) => `${f.name}|${f.size}|${f.lastModified}`));
+      const next = [...prev];
+      for (const f of list) {
+        const key = `${f.name}|${f.size}|${f.lastModified}`;
+        if (!seen.has(key)) { seen.add(key); next.push(f); }
+      }
+      return next;
+    });
+    setOut([]); setErr("");
+  };
+  const removeAt = (i: number) => { setFiles((prev) => prev.filter((_, j) => j !== i)); setOut([]); };
+  const moveAt = (i: number, d: number) => {
+    setFiles((prev) => {
+      const j = i + d;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+    setOut([]);
+  };
 
   async function run() {
     urls.current.forEach(URL.revokeObjectURL); urls.current = [];
@@ -416,6 +440,7 @@ export function Workbench({ slug }: { slug: string }) {
           note: `Grayscale, text kept${warn}, ${kb(files[0].size)} to ${kb(blob.size)}`,
         });
       } else if (slug === "pdf-merge") {
+        if (files.length < 2) throw new Error("Pick at least two PDFs to merge.");
         const { PDFDocument } = await import("pdf-lib");
         const merged = await PDFDocument.create();
         for (let i = 0; i < files.length; i++) {
@@ -542,10 +567,30 @@ export function Workbench({ slug }: { slug: string }) {
     <div className="wb">
       <div className="wb-in">
       <label className="drop">
-        <strong>{files.length ? files.map((f) => f.name).join(", ") : "Choose a file"}</strong>
-        <span>{files.length ? "Choose again to replace." : `${cfg.hint} Or drop it here.`}</span>
-        <input type="file" accept={cfg.accept} multiple={cfg.multi} onChange={(e) => { setFiles(Array.from(e.target.files || [])); setOut([]); setErr(""); }} />
+        <strong>{files.length ? (cfg.multi ? `${files.length} file${files.length === 1 ? "" : "s"} ready` : files[0].name) : "Choose a file"}</strong>
+        <span>{files.length ? (cfg.multi ? "Choose again to add more." : "Choose again to replace.") : `${cfg.hint} Or drop it here.`}</span>
+        <input type="file" accept={cfg.accept} multiple={cfg.multi} onChange={(e) => {
+          const list = Array.from(e.target.files || []);
+          if (cfg.multi) addFiles(list);
+          else { setFiles(list); setOut([]); setErr(""); }
+          e.target.value = "";
+        }} />
       </label>
+
+      {cfg.multi && files.length > 0 && (
+        <ul className="picks">
+          {files.map((f, i) => (
+            <li key={`${f.name}|${f.size}|${f.lastModified}`}>
+              <span className="nm" title={f.name}>{f.name}</span>
+              {orderMatters && <>
+                <button type="button" className="mv" onClick={() => moveAt(i, -1)} disabled={i === 0} aria-label="Move up">▲</button>
+                <button type="button" className="mv" onClick={() => moveAt(i, 1)} disabled={i === files.length - 1} aria-label="Move down">▼</button>
+              </>}
+              <button type="button" className="rm" onClick={() => removeAt(i)} aria-label="Remove">✕</button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="opts">
         {slug === "image-compress" && <>
