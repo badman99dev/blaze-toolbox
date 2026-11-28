@@ -11,6 +11,7 @@ const P: Record<string, React.ReactNode> = {
   "watermark": <><rect x="4" y="8" width="24" height="18" rx="2" /><path d="M8 21l3-4 2 2 3-4 3 5" /><path d="M23 3l1.4 3.1L27.5 7.5l-3.1 1.4L23 12l-1.4-3.1L18.5 7.5l3.1-1.4z" /></>,
   "image-to-base64": <><rect x="4" y="8" width="12" height="16" rx="2" /><path d="M21 16h7M24 13l4 3-4 3" /></>,
   "pdf-to-image": <><path d="M8 4h11l5 5v19H8zM19 4v5h5M11 24l4-5 3 3 2-2 3 4" /></>,
+  "pdf-compress": <><rect x="8" y="4" width="16" height="24" rx="2" /><path d="M16 9v7M12.5 12.5L16 16l3.5-3.5" /><path d="M11 21h10" /></>,
   "image-to-pdf": <><rect x="4" y="8" width="14" height="16" /><path d="M7 21l4-5 3 3M21 12h7v16H11v-4" /></>,
   "pdf-grayscale": <><circle cx="16" cy="16" r="11" /><path d="M16 5a11 11 0 0 1 0 22z" fill="currentColor" /></>,
   "pdf-merge": <><rect x="4" y="6" width="11" height="20" rx="2" /><rect x="19" y="10" width="9" height="12" rx="2" /><path d="M15 16h4" /></>,

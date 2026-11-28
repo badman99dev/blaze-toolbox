@@ -42,6 +42,7 @@ export const TOOLS: Tool[] = [
   { slug: "heic-to-jpg", cat: "everyday", mode: "local", tags: ["image"], name: "HEIC to JPG", blurb: "Turn iPhone HEIC photos into JPG, PNG or WebP files that open everywhere.", meta: "HEIC, HEIF" },
   { slug: "image-to-pdf", cat: "everyday", mode: "local", tags: ["image", "pdf"], name: "Image to PDF, scanned look", blurb: "Combine photos into one PDF with the flat, high-contrast look of a scanner.", meta: "Many images, one file" },
   { slug: "pdf-to-image", cat: "everyday", mode: "local", tags: ["pdf", "image"], name: "PDF to image", blurb: "Turn each page into a sharp PNG or JPG.", meta: "PNG, JPG" },
+  { slug: "pdf-compress", cat: "everyday", mode: "local", tags: ["pdf"], name: "Compress PDF", blurb: "Shrink a PDF without turning pages into images — text stays selectable and sharp.", meta: "Keeps text and vectors" },
   { slug: "pdf-merge", cat: "everyday", mode: "local", tags: ["pdf"], name: "Merge PDFs", blurb: "Join several PDFs into one file, in the order you choose.", meta: "Many files, one PDF" },
   { slug: "pdf-split", cat: "everyday", mode: "local", tags: ["pdf"], name: "Split PDF", blurb: "Pull out a page range or break a PDF into single pages.", meta: "By page range" },
   { slug: "pdf-rotate", cat: "everyday", mode: "local", tags: ["pdf"], name: "Rotate PDF", blurb: "Turn pages 90, 180 or 270 degrees and save a fixed copy.", meta: "90 / 180 / 270" },

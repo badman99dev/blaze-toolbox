@@ -269,6 +269,28 @@ async function lockPdf(bytes: Uint8Array, password: string, allowPrint: boolean,
   if (!out || !out.length) throw new Error("Could not add a password to this PDF. It may be damaged or already encrypted.");
   return out;
 }
+
+// Lossless structural compression: pack objects into compressed object streams,
+// re-deflate at level 9 and drop unreferenced resources. Content streams, fonts,
+// text, vectors and annotations are copied through untouched — pages are never
+// rasterised, so text stays selectable. Big gains on PDFs with a loose object
+// structure; already-tight files come back about the same size.
+async function compressPdf(bytes: Uint8Array) {
+  const { out, code } = await qpdfRun(bytes, (input, output) => [
+    "--object-streams=generate",
+    "--recompress-flate",
+    "--compression-level=9",
+    "--compress-streams=y",
+    "--remove-unreferenced-resources=yes",
+    "--", input, output,
+  ]);
+  if (!out || !out.length) {
+    throw new Error(code === 2
+      ? "This PDF needs a password first. Unlock it, then compress."
+      : "Could not read this PDF. It may be damaged or use an unsupported feature.");
+  }
+  return out;
+}
 function buildIco(images: { size: number; bytes: Uint8Array }[]) {
   const header = 6 + 16 * images.length;
   const total = header + images.reduce((s, i) => s + i.bytes.length, 0);
@@ -312,6 +334,7 @@ const CFG: Record<string, { accept: string; multi: boolean; hint: string; cta: s
   "watermark": { accept: "image/*", multi: true, hint: "Pick photos to watermark; add more below.", cta: "Add watermark" },
   "image-to-base64": { accept: "image/*", multi: true, hint: "Pick images to encode; add more below.", cta: "Encode" },
   "pdf-to-image": { accept: "application/pdf", multi: false, hint: "One PDF. Every page becomes an image.", cta: "Convert pages" },
+  "pdf-compress": { accept: "application/pdf", multi: false, hint: "One PDF. Text and vectors are kept — pages are not turned into images.", cta: "Compress PDF" },
   "image-to-pdf": { accept: "image/*", multi: true, hint: "Pick photos in the order you want the pages. Add more or reorder below.", cta: "Make PDF" },
   "pdf-grayscale": { accept: "application/pdf", multi: false, hint: "One color PDF.", cta: "Convert to grayscale" },
   "pdf-merge": { accept: "application/pdf", multi: true, hint: "Pick PDFs to join. They merge top to bottom in this order — add more or reorder below.", cta: "Merge" },
@@ -640,6 +663,18 @@ export function Workbench({ slug }: { slug: string }) {
         sel.forEach((n) => { const p = src.getPage(n - 1); p.setRotation(degrees((p.getRotation().angle + add) % 360)); });
         const blob = new Blob([(await src.save()) as unknown as BlobPart], { type: "application/pdf" });
         res.push({ name: `${base(files[0].name)}-rotated.pdf`, url: keep(blob), note: `${sel.length} page(s) turned ${add}°, ${kb(blob.size)}` });
+      } else if (slug === "pdf-compress") {
+        setStatus("Compressing");
+        const f = files[0];
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const out = await compressPdf(bytes);
+        if (out.length >= f.size) {
+          res.push({ name: f.name, url: keep(f), note: `Already well optimized at ${kb(f.size)} — left untouched` });
+        } else {
+          const blob = new Blob([out as unknown as BlobPart], { type: "application/pdf" });
+          const pct = Math.round((1 - out.length / f.size) * 100);
+          res.push({ name: `${base(f.name)}-compressed.pdf`, url: keep(blob), note: `${kb(f.size)} to ${kb(out.length)} (-${pct}%), text and vectors kept` });
+        }
       } else if (slug === "pdf-unlock") {
         setStatus("Removing protection");
         const bytes = new Uint8Array(await files[0].arrayBuffer());
@@ -872,6 +907,7 @@ export function Workbench({ slug }: { slug: string }) {
           <label>Pages<input type="text" value={range} onChange={(e) => setRange(e.target.value)} placeholder="all" /></label>
           <p className="hint">Leave Pages empty to rotate every page.</p>
         </>}
+        {slug === "pdf-compress" && <p className="hint">Removes duplicate objects and packs the file structure more tightly, so the same pages take less space. <b>Text stays selectable and pages are never turned into images.</b> A PDF that is already well optimized may barely change. Scanned PDFs (photos inside the file) shrink only a little — this does not blur their pictures.</p>}
         {slug === "pdf-unlock" && <>
           <label>Password<input type="password" value={pdfPw} onChange={(e) => setPdfPw(e.target.value)} placeholder="Only if it asks for one" autoComplete="off" /></label>
           <p className="hint">Use this for PDFs you own or are allowed to unlock. The file and password never leave your device. A PDF that cannot be opened without its password cannot be unlocked without it.</p>
