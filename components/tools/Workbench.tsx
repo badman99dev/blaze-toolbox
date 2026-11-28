@@ -544,7 +544,7 @@ async function makeBgBlob(bg: string, img: File | null, W: number, H: number, mo
   }
   return toBlob(solidCanvas(W, H, bg === "white" ? "#ffffff" : "#000000"), "image/png");
 }
-async function ffmpegAudioToVideo(audio: File, bg: Blob, W: number, H: number, kbps: number, dur: number, onProg: (p: number) => void) {
+async function ffmpegAudioToVideo(audio: File, bg: Blob, W: number, H: number, kbps: number, dur: number, fps: number, onProg: (p: number) => void) {
   const ff = await getFfmpeg();
   const { fetchFile } = await loadLib("ffmpeg-util", "Audio engine (ffmpeg helper)", () => import("@ffmpeg/util"));
   ffProg = onProg;
@@ -553,10 +553,12 @@ async function ffmpegAudioToVideo(audio: File, bg: Blob, W: number, H: number, k
   await ff.writeFile("bg.png", await fetchFile(bg));
   await ff.writeFile(aName, await fetchFile(audio));
   const args = [
-    "-loop", "1", "-framerate", "25", "-i", "bg.png",
+    "-loop", "1", "-framerate", String(fps), "-i", "bg.png",
     "-i", aName,
     "-map", "0:v:0", "-map", "1:a:0",
-    "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage", "-crf", "26", "-pix_fmt", "yuv420p",
+    // ultrafast: the frame never changes, so the extra quality of a slower
+    // preset buys almost nothing here while costing a lot of wasm time.
+    "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-crf", "26", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", `${kbps}k`,
   ];
   // A looping image never "ends", so -shortest alone does not reliably stop the
@@ -623,7 +625,7 @@ function mediaDuration(file: File): Promise<number> {
     el.src = url;
   });
 }
-async function ffmpegTrim(file: File, jobs: Cut[], onProg: (done: number, total: number, label: string) => void) {
+async function ffmpegTrim(file: File, jobs: Cut[], copy: boolean, onProg: (done: number, total: number, label: string) => void) {
   const ff = await getFfmpeg();
   const { fetchFile } = await loadLib("ffmpeg-util", "Audio engine (ffmpeg helper)", () => import("@ffmpeg/util"));
   const isVideo = file.type.startsWith("video/");
@@ -631,20 +633,39 @@ async function ffmpegTrim(file: File, jobs: Cut[], onProg: (done: number, total:
   const enc = trimEncoder(file, isVideo);
   const inName = "in_" + (file.name.replace(/[^\w.-]/g, "_") || "input");
   await ff.writeFile(inName, await fetchFile(file));
-  const outs: { name: string; blob: Blob }[] = [];
+  const outs: { name: string; blob: Blob; copied: boolean }[] = [];
   for (let i = 0; i < jobs.length; i++) {
     const job = jobs[i];
     const segName = `seg${i}.${ext}`;
     ffProg = (p) => onProg(i + Math.max(0, Math.min(1, p)), jobs.length, job.name);
-    const args = ["-ss", job.start.toFixed(3), "-i", inName, "-t", job.dur.toFixed(3), ...enc.args];
-    if (enc.faststart) args.push("-movflags", "+faststart");
-    args.push(segName);
-    const code = await ff.exec(args);
-    let data: Uint8Array | string | null = null;
-    try { data = await ff.readFile(segName); } catch { data = null; }
-    try { await ff.deleteFile(segName); } catch { /* ignore */ }
-    if (code !== 0 || !data || typeof data === "string" || !data.length) throw new Error("Could not cut this part of the file.");
-    outs.push({ name: job.name, blob: new Blob([data as unknown as BlobPart], { type: enc.mime }) });
+    const head = ["-ss", job.start.toFixed(3), "-i", inName];
+    const tail = enc.faststart ? ["-movflags", "+faststart"] : [];
+    // -t must sit after the codec/copy options: placing it before -c copy makes
+    // a stream copy overshoot (a 1.5s cut came out ~2.9s long).
+    const durArg = ["-t", job.dur.toFixed(3)];
+    const encodeArgs = [...head, ...enc.args, ...durArg, ...tail, segName];
+    // Fast path: copy the packets through without re-encoding — instant and
+    // lossless, but the cut lands on the nearest keyframe before the start.
+    const copyArgs = [...head, "-c", "copy", ...durArg, ...tail, segName];
+    const attempt = async (args: string[]) => {
+      const code = await ff.exec(args);
+      let data: Uint8Array | string | null = null;
+      try { data = await ff.readFile(segName); } catch { data = null; }
+      try { await ff.deleteFile(segName); } catch { /* ignore */ }
+      const ok = code === 0 && !!data && typeof data !== "string" && (data as Uint8Array).length > 0;
+      return { ok, data };
+    };
+    let copied = false;
+    let r: { ok: boolean; data: Uint8Array | string | null };
+    if (copy) {
+      r = await attempt(copyArgs);
+      if (r.ok) copied = true;
+      else r = await attempt(encodeArgs); // some codec/container combos cannot be copied into the output — fall back
+    } else {
+      r = await attempt(encodeArgs);
+    }
+    if (!r.ok) throw new Error("Could not cut this part of the file.");
+    outs.push({ name: job.name, blob: new Blob([r.data as unknown as BlobPart], { type: enc.mime }), copied });
   }
   try { await ff.deleteFile(inName); } catch { /* ignore */ }
   return outs;
@@ -729,8 +750,10 @@ export function Workbench({ slug }: { slug: string }) {
   const [avSize, setAvSize] = useState("1280x720");
   const [avFit, setAvFit] = useState<"cover" | "contain">("cover");
   const [avBitrate, setAvBitrate] = useState("192");
+  const [avRate, setAvRate] = useState("25");
   const [avBgFile, setAvBgFile] = useState<File | null>(null);
   const [tmMode, setTmMode] = useState("trim");
+  const [tmSpeed, setTmSpeed] = useState("copy");
   const [tmFrom, setTmFrom] = useState("");
   const [tmTo, setTmTo] = useState("");
   const [tmSplit, setTmSplit] = useState("parts");
@@ -1115,7 +1138,7 @@ export function Workbench({ slug }: { slug: string }) {
         const bgBlob = await makeBgBlob(avBg, avBgFile, W, H, avFit);
         const dur = await mediaDuration(f).catch(() => 0);
         setStatus("Building the video (the first run loads the engine)...");
-        const blob = await ffmpegAudioToVideo(f, bgBlob, W, H, kbps, dur, (p) => setStatus(`Building ${base(f.name)}.mp4 — ${Math.round(p * 100)}%`));
+        const blob = await ffmpegAudioToVideo(f, bgBlob, W, H, kbps, dur, Number(avRate) || 25, (p) => setStatus(`Building ${base(f.name)}.mp4 — ${Math.round(p * 100)}%`));
         const bgLabel = avBg === "image" ? "your picture" : `${avBg} screen`;
         res.push({ name: `${base(f.name)}.mp4`, url: keep(blob), note: `${W} × ${H}, ${bgLabel}, ${kbps} kbps audio, ${kb(blob.size)}` });
       } else if (slug === "trim-media") {
@@ -1141,10 +1164,11 @@ export function Workbench({ slug }: { slug: string }) {
           for (let i = 0; i < n; i++) { const s = i * every; jobs.push({ start: s, dur: Math.min(every, dur - s), name: `${base(f.name)}-part${i + 1}.${ext}` }); }
         }
         setStatus("Loading the engine (first time only)...");
-        const outs = await ffmpegTrim(f, jobs, (done, total, label) => setStatus(`Cutting ${label} — ${Math.round((done / total) * 100)}%`));
+        const copy = tmMode === "trim" && tmSpeed === "copy";
+        const outs = await ffmpegTrim(f, jobs, copy, (done, total, label) => setStatus(`Cutting ${label} — ${Math.round((done / total) * 100)}%`));
         outs.forEach((o, i) => {
           const j = jobs[i];
-          res.push({ name: o.name, url: keep(o.blob), note: `${fmtTime(j.start)} → ${fmtTime(j.start + j.dur)}, ${kb(o.blob.size)}` });
+          res.push({ name: o.name, url: keep(o.blob), note: `${fmtTime(j.start)} → ${fmtTime(j.start + j.dur)}, ${o.copied ? "no re-encode" : "re-encoded"}, ${kb(o.blob.size)}` });
         });
       } else if (slug === "pdf-unlock") {
         setStatus("Removing protection");
@@ -1450,6 +1474,14 @@ export function Workbench({ slug }: { slug: string }) {
               {VIDEO_SIZES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </label>
+          <label>Frame rate
+            <select value={avRate} onChange={(e) => setAvRate(e.target.value)}>
+              <option value="25">25 fps (normal)</option>
+              <option value="30">30 fps</option>
+              <option value="15">15 fps (faster)</option>
+              <option value="10">10 fps (fastest)</option>
+            </select>
+          </label>
           <label>Audio bitrate
             <select value={avBitrate} onChange={(e) => setAvBitrate(e.target.value)}>
               <option value="320">320 kbps</option>
@@ -1472,7 +1504,7 @@ export function Workbench({ slug }: { slug: string }) {
               </select>
             </label>
           )}
-          <p className="hint">Turns audio into a real <b>MP4</b> video on a black screen or your own picture. The first run loads a one-time video engine (about 31 MB) from the web and caches it. Your file is never uploaded.</p>
+          <p className="hint">Turns audio into a real <b>MP4</b> video on a black screen or your own picture. The first run loads a one-time video engine (about 31 MB) from the web and caches it. The picture never changes, so a <b>lower frame rate finishes faster</b> and makes a smaller file. Your file is never uploaded.</p>
         </>}
         {slug === "trim-media" && <>
           <label>What to do
@@ -1481,6 +1513,14 @@ export function Workbench({ slug }: { slug: string }) {
               <option value="split">Split into parts</option>
             </select>
           </label>
+          {tmMode === "trim" && (
+            <label>Speed
+              <select value={tmSpeed} onChange={(e) => setTmSpeed(e.target.value)}>
+                <option value="copy">Fast — no re-encode</option>
+                <option value="encode">Exact — re-encode</option>
+              </select>
+            </label>
+          )}
           {tmMode === "trim" && (
             <label>From
               <input type="text" value={tmFrom} onChange={(e) => setTmFrom(e.target.value)} placeholder="0:00" inputMode="numeric" />
@@ -1509,7 +1549,7 @@ export function Workbench({ slug }: { slug: string }) {
               <input type="number" min={1} value={tmEvery} onChange={(e) => setTmEvery(e.target.value)} />
             </label>
           )}
-          <p className="hint">{tmDur > 0 ? <>This file is <b>{fmtTime(tmDur)}</b> long. </> : null}Type times as <b>m:ss</b> or <b>h:mm:ss</b> (e.g. 1:30 or 0:12.5). The cut is re-encoded so it lands exactly where you want. The first run loads a one-time engine (about 31 MB) from the web; your file is never uploaded.</p>
+          <p className="hint">{tmDur > 0 ? <>This file is <b>{fmtTime(tmDur)}</b> long. </> : null}Type times as <b>m:ss</b> or <b>h:mm:ss</b> (e.g. 1:30 or 0:12.5). <b>Fast</b> copies the clip without re-encoding — nearly instant and quality stays the same, but the cut starts at the nearest keyframe (can be a second or two off). <b>Exact</b> re-encodes so the cut lands exactly. Splitting always uses the exact method. The first run loads a one-time engine (about 31 MB) from the web; your file is never uploaded.</p>
         </>}
         {slug === "pdf-unlock" && <>
           <label>Password<input type="password" value={pdfPw} onChange={(e) => setPdfPw(e.target.value)} placeholder="Only if it asks for one" autoComplete="off" /></label>
