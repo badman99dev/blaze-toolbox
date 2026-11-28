@@ -263,3 +263,9 @@ a.cell:hover{border-color:var(--ink);background:#fff;box-shadow:0 .25rem 1rem #0
 .hash-copy:hover{border-color:var(--accent);color:var(--accent)}
 .hash-copy.done{border-color:#b7e0c3;background:#eaf7ee;color:#16613a}
 @media(max-width:30rem){.hash-row{flex-wrap:wrap}.hash-algo{flex-basis:100%}}
+
+/* ---------- html/css to pdf ---------- */
+.code{font:400 .82rem/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;width:100%;min-width:0;min-height:9rem;resize:vertical;padding:.5rem .625rem;border:1px solid var(--edge);border-radius:var(--r);background:#fff;color:inherit;white-space:pre;tab-size:2}
+.code:focus{outline:2px solid var(--accent);outline-offset:1px}
+.h2p-head{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.6rem}
+.h2p-view{display:block;width:100%;height:clamp(20rem,60vh,40rem);border:1px solid var(--line);border-radius:.5rem;background:#fff}

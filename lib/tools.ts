@@ -64,4 +64,5 @@ export const TOOLS: Tool[] = [
   { slug: "favicon-generator", cat: "dev", mode: "local", tags: ["image"], name: "Favicon and app icons", blurb: "Make a full icon pack, PNG sizes plus .ico, from a single image.", meta: "ICO + PNG pack" },
   { slug: "image-to-base64", cat: "dev", mode: "local", tags: ["image", "text"], name: "Image to Base64", blurb: "Turn an image into a data URI ready for HTML, CSS or JSON.", meta: "Data URI" },
   { slug: "file-hash", cat: "dev", mode: "local", tags: ["file"], name: "File hash & compare", blurb: "See the MD5, SHA-1, SHA-256 and SHA-512 of any file — and check whether two files are exactly the same.", meta: "MD5, SHA-1, SHA-256, SHA-512" },
+  { slug: "html-to-pdf", cat: "dev", mode: "local", tags: ["text", "pdf"], name: "HTML/CSS to PDF", blurb: "Paste HTML and CSS (or load an .html file) and save a clean PDF — with a live preview and your choice of paper size.", meta: "A4 · Letter · Legal" },
 ];
